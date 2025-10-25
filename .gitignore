@@ -1,1 +1,17 @@
-backend/.env
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+venv/
+.venv/
+
+# IDE / editor settings
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
