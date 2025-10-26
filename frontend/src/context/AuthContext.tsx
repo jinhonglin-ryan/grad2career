@@ -98,7 +98,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const logout = () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('onboarding_completed');
     setUser(null);
+    window.location.href = '/';
   };
 
   const value = {

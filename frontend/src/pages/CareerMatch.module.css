@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   background: #f9fafb;
-  padding-top: 64px;
+  padding-top: 88px;
 }
 
 .nav {
@@ -9,8 +9,9 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 64px;
-  background: white;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   z-index: 100;
 }
