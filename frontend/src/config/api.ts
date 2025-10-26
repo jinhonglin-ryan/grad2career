@@ -6,6 +6,8 @@ export const API_ENDPOINTS = {
     login: '/auth/login',
     signup: '/auth/signup',
     logout: '/auth/logout',
+    googleLogin: '/auth/google/login',
+    googleCallback: '/auth/google/callback',
   },
   skills: {
     assess: '/skills/assess',

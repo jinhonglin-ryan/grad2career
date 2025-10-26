@@ -13,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name?: string) => Promise<void>;
+  googleLogin: () => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -81,6 +82,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  const googleLogin = async () => {
+    try {
+      // Redirect to Google OAuth
+      const response = await api.get('/auth/google/login');
+      // Backend should return the OAuth URL
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (error) {
+      console.error('Google login failed:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('authToken');
     setUser(null);
@@ -91,6 +106,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     loading,
     login,
     signup,
+    googleLogin,
     logout,
     isAuthenticated: !!user,
   };
