@@ -1,0 +1,26 @@
+import { Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import LoginPage from './pages/LoginPage';
+import SignUpPage from './pages/SignUpPage';
+import Dashboard from './pages/Dashboard';
+import SkillAssessment from './pages/SkillAssessment';
+import CareerMatch from './pages/CareerMatch';
+import LearningPath from './pages/LearningPath';
+import 'antd/dist/reset.css';
+import './App.css';
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignUpPage />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/assessment" element={<SkillAssessment />} />
+      <Route path="/careers" element={<CareerMatch />} />
+      <Route path="/learning" element={<LearningPath />} />
+    </Routes>
+  );
+}
+
+export default App;
