@@ -3,7 +3,7 @@ annotated-types==0.7.0
 anyio==4.11.0
 certifi==2025.10.5
 cffi==2.0.0
-click==8.3.0
+click==8.1.8
 colorama==0.4.6
 cryptography==46.0.3
 deprecation==2.1.0
@@ -16,7 +16,7 @@ httpx==0.28.1
 hyperframe==6.1.0
 idna==3.11
 multidict==6.7.0
-packaging==25.0
+packaging==23.2
 postgrest==2.22.2
 propcache==0.4.1
 pycparser==2.23
