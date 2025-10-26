@@ -121,6 +121,8 @@ async def google_callback(code: str = None, error: str = None):
         # 查找现有用户
         user_result = supabase.table('users').select('*').eq('email', email).execute()
         
+        is_new_user = False
+        
         if user_result.data and len(user_result.data) > 0:
             # 用户存在，更新信息
             user = user_result.data[0]
@@ -131,6 +133,11 @@ async def google_callback(code: str = None, error: str = None):
                 'updated_at': datetime.utcnow().isoformat()
             }
             supabase.table('users').update(update_data).eq('id', user['id']).execute()
+            
+            # 检查用户是否有 profile（判断是否完成过 onboarding）
+            profile_result = supabase.table('user_profiles').select('*').eq('user_id', user['id']).execute()
+            if not profile_result.data or len(profile_result.data) == 0:
+                is_new_user = True
         else:
             # 创建新用户
             new_user = {
@@ -143,12 +150,13 @@ async def google_callback(code: str = None, error: str = None):
             }
             user_result = supabase.table('users').insert(new_user).execute()
             user = user_result.data[0]
+            is_new_user = True
         
         # 生成 JWT token
         jwt_token = create_jwt_token(user['id'], email)
         
-        # 重定向到前端并带上 token
-        frontend_callback = f"{settings.frontend_url}/auth/callback?token={jwt_token}"
+        # 重定向到前端并带上 token 和 new_user 标记
+        frontend_callback = f"{settings.frontend_url}/auth/callback?token={jwt_token}&new_user={str(is_new_user).lower()}"
         return RedirectResponse(url=frontend_callback)
         
     except Exception as e:
@@ -258,4 +266,61 @@ async def get_current_user(token: str):
 async def logout():
     """登出"""
     return {"message": "Logged out successfully"}
+
+@router.post("/user/profile")
+async def save_user_profile(profile_data: dict, token: str = None):
+    """保存用户详细信息（onboarding 数据）"""
+    if not token:
+        # 尝试从请求头获取
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # 验证 token
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # 检查是否已有 profile
+        existing_profile = supabase.table('user_profiles').select('*').eq('user_id', user_id).execute()
+        
+        profile_payload = {
+            'user_id': user_id,
+            'skills': profile_data.get('skills', []),
+            'tools': [],  # 可以从 skills 中提取
+            'certifications': profile_data.get('certifications', []),
+            'work_experience': profile_data.get('workExperience', ''),
+            'career_goals': profile_data.get('careerGoals', ''),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # 添加额外的元数据
+        metadata = {
+            'current_role': profile_data.get('currentRole'),
+            'years_of_experience': profile_data.get('yearsOfExperience'),
+            'industry': profile_data.get('industry'),
+            'location': profile_data.get('location'),
+            'looking_for': profile_data.get('lookingFor', [])
+        }
+        
+        if existing_profile.data and len(existing_profile.data) > 0:
+            # 更新现有 profile
+            result = supabase.table('user_profiles').update(profile_payload).eq('user_id', user_id).execute()
+        else:
+            # 创建新 profile
+            profile_payload['created_at'] = datetime.utcnow().isoformat()
+            result = supabase.table('user_profiles').insert(profile_payload).execute()
+        
+        # 同时保存元数据到用户表
+        user_update = {
+            'metadata': metadata,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        supabase.table('users').update(user_update).eq('id', user_id).execute()
+        
+        return {"message": "Profile saved successfully", "profile": result.data}
+        
+    except Exception as e:
+        print(f"Error saving profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save profile: {str(e)}")
 

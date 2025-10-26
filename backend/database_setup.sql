@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     picture TEXT,
     auth_provider VARCHAR(50) DEFAULT 'email', -- 'email' 或 'google'
     password_hash TEXT, -- 用于邮箱密码登录
+    metadata JSONB DEFAULT '{}'::jsonb, -- 额外的用户元数据
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

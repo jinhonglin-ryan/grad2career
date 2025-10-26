@@ -27,12 +27,21 @@ const OAuthCallback = () => {
           // Store the token
           localStorage.setItem('authToken', token);
           
+          // Check if this is a new user (needs onboarding)
+          const isNewUser = searchParams.get('new_user');
+          
           setStatus('success');
           setMessage('Login successful! Redirecting...');
           
-          // Redirect to dashboard after a short delay
+          // Redirect based on user status
           setTimeout(() => {
-            navigate('/dashboard');
+            if (isNewUser === 'true') {
+              // New user - go to onboarding
+              navigate('/onboarding');
+            } else {
+              // Existing user - go to dashboard
+              navigate('/dashboard');
+            }
           }, 1500);
         } else {
           setStatus('error');

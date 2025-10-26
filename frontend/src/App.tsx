@@ -7,6 +7,7 @@ import SkillAssessment from './pages/SkillAssessment';
 import CareerMatch from './pages/CareerMatch';
 import LearningPath from './pages/LearningPath';
 import OAuthCallback from './pages/OAuthCallback';
+import OnboardingPage from './pages/OnboardingPage';
 import 'antd/dist/reset.css';
 import './App.css';
 
@@ -17,6 +18,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignUpPage />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/assessment" element={<SkillAssessment />} />
       <Route path="/careers" element={<CareerMatch />} />
