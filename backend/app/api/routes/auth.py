@@ -244,8 +244,14 @@ async def signup(request: SignupRequest):
         raise HTTPException(status_code=500, detail="Signup failed")
 
 @router.get("/me")
-async def get_current_user(token: str):
+async def get_current_user(request: Request):
     """获取当前用户信息"""
+    # 从请求头获取 token
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
     payload = verify_jwt_token(token)
     
     supabase = get_supabase()
@@ -268,11 +274,14 @@ async def logout():
     return {"message": "Logged out successfully"}
 
 @router.post("/user/profile")
-async def save_user_profile(profile_data: dict, token: str = None):
+async def save_user_profile(profile_data: dict, request: Request):
     """保存用户详细信息（onboarding 数据）"""
-    if not token:
-        # 尝试从请求头获取
+    # 从请求头获取 token
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
         raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
     
     # 验证 token
     payload = verify_jwt_token(token)

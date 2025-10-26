@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, User, Target, Briefcase as WorkIcon, Award, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,14 @@ const OnboardingPage = () => {
   const [certInput, setCertInput] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Check if user has token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
 
   const [formData, setFormData] = useState<FormData>({
     currentRole: '',
@@ -121,11 +129,7 @@ const OnboardingPage = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('authToken');
-      
-      await api.post('/user/profile', formData, {
-        params: { token }
-      });
+      await api.post('/auth/user/profile', formData);
 
       // 标记用户已完成 onboarding
       localStorage.setItem('onboarding_completed', 'true');

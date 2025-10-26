@@ -37,10 +37,10 @@ const OAuthCallback = () => {
           setTimeout(() => {
             if (isNewUser === 'true') {
               // New user - go to onboarding
-              navigate('/onboarding');
+              navigate('/onboarding', { replace: true });
             } else {
               // Existing user - go to dashboard
-              navigate('/dashboard');
+              navigate('/dashboard', { replace: true });
             }
           }, 1500);
         } else {
