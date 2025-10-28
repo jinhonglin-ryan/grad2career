@@ -11,7 +11,7 @@ def supabase_health():
     """
     client = get_supabase()
     try:
-        client.table("profiles").select("id").limit(1).execute()
+        client.table("user_profiles").select("user_id").limit(1).execute()
         return {"ok": True, "supabase": "connected"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
