@@ -3,7 +3,6 @@ import logging
 import httpx
 from app.core.config import configure_adk_env, settings
 
-# Make sure ADK is properly configured before any imports
 configure_adk_env()
 
 from google.adk.agents import LlmAgent, SequentialAgent
@@ -11,9 +10,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from google.adk.tools import google_search
 
-# ---------------------------------------------------------------------
-# Logging Setup
-# ---------------------------------------------------------------------
+
 logger = logging.getLogger("resource_finder")
 if not logger.handlers:
     _handler = logging.StreamHandler()
@@ -25,9 +22,7 @@ if not logger.handlers:
     logger.addHandler(_handler)
 logger.setLevel(logging.INFO)
 
-# ---------------------------------------------------------------------
-# Tool functions
-# ---------------------------------------------------------------------
+
 def youtube_search_playlists(skill: str, max_results: int) -> dict:
     """Search YouTube for playlists related to a skill.
 
