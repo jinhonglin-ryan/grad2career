@@ -1,11 +1,19 @@
-from app.core.config import configure_adk_env, settings
-configure_adk_env()
-from google.adk.agents import LlmAgent, SequentialAgent
-from google.adk.tools import google_search
-import httpx
+import json
 import logging
+import httpx
+from app.core.config import configure_adk_env, settings
 
+# Make sure ADK is properly configured before any imports
+configure_adk_env()
 
+from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.genai import types
+from google.adk.tools import google_search
+
+# ---------------------------------------------------------------------
+# Logging Setup
+# ---------------------------------------------------------------------
 logger = logging.getLogger("resource_finder")
 if not logger.handlers:
     _handler = logging.StreamHandler()
@@ -17,11 +25,14 @@ if not logger.handlers:
     logger.addHandler(_handler)
 logger.setLevel(logging.INFO)
 
-
+# ---------------------------------------------------------------------
+# Tool functions
+# ---------------------------------------------------------------------
 def youtube_search_playlists(skill: str, max_results: int) -> dict:
     """Search YouTube for playlists related to a skill.
 
-    Returns a dict with a list of playlists: [{playlistId, title, channelTitle, url}].
+    Returns:
+        dict: {status, playlists or error_message}
     """
     api_key = settings.youtube_api_key
     if not api_key:
@@ -36,6 +47,7 @@ def youtube_search_playlists(skill: str, max_results: int) -> dict:
         "maxResults": max_results,
         "key": api_key,
     }
+
     logger.info("YouTube playlist search: skill='%s', max_results=%s", skill, max_results)
     with httpx.Client(timeout=20.0) as client:
         resp = client.get(url, params=params)
@@ -58,13 +70,17 @@ def youtube_search_playlists(skill: str, max_results: int) -> dict:
         })
 
     logger.info("YouTube playlist search returned %d playlists", len(playlists))
+    if not playlists:
+        return {"status": "error", "error_message": "No playlists found."}
+
     return {"status": "success", "playlists": playlists}
 
 
 def youtube_get_playlist_items(playlist_id: str, max_results: int) -> dict:
     """Fetch items from a YouTube playlist.
 
-    Returns a dict with items: [{videoId, title, position, url}].
+    Returns:
+        dict: {status, items or error_message}
     """
     api_key = settings.youtube_api_key
     if not api_key:
@@ -78,6 +94,7 @@ def youtube_get_playlist_items(playlist_id: str, max_results: int) -> dict:
         "maxResults": max_results,
         "key": api_key,
     }
+
     logger.info("YouTube playlist items: playlist_id='%s', max_results=%s", playlist_id, max_results)
     with httpx.Client(timeout=20.0) as client:
         resp = client.get(url, params=params)
@@ -101,65 +118,56 @@ def youtube_get_playlist_items(playlist_id: str, max_results: int) -> dict:
         })
 
     logger.info("YouTube playlist items returned %d videos", len(items))
+    if not items:
+        return {"status": "error", "error_message": "No videos found in playlist."}
+
     return {"status": "success", "items": items}
 
 
-# --- Sub-Agent 1: Online search for learning resources ---
 search_agent = LlmAgent(
     name="SearchOnlineAgent",
     model="gemini-2.5-flash",
     instruction=(
         "You are a research assistant. Given the user's requested skill/topic, use Google Search to find "
         "5-10 popular, high-quality learning resources (courses, tutorials, documentation, playlists, channels). "
-        "Prefer reputable sources and up-to-date content. Output ONLY JSON in the schema:\n"
-        "{\n  \"resources\": [\n    {\"title\": str, \"source\": str, \"type\": str, \"url\": str}\n  ]\n}\n"
+        "Prefer reputable sources and up-to-date content. Output ONLY JSON in this schema:\n"
+        "{ 'resources': [{'title': str, 'source': str, 'type': str, 'url': str}] }"
     ),
     description="Searches web for popular learning resources for a skill.",
     tools=[google_search],
     output_key="search_results",
 )
 
-
-# --- Sub-Agent 2: Use YouTube API to find playlists and videos ---
 youtube_agent = LlmAgent(
     name="YouTubeFinderAgent",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a YouTube research assistant. The user skill/topic is in the conversation, and you also have \n"
+        "You are a YouTube research assistant. The user skill/topic is in the conversation, and you also have "
         "the prior web resources below. Use the YouTube tools to: \n"
         "1) Find 1-3 high-quality playlists for this skill.\n"
         "2) For the best playlist, fetch up to 10 videos.\n"
-        "Return ONLY JSON in the schema:\n"
-        "{\n  \"playlist\": {\"playlistId\": str, \"title\": str, \"url\": str},\n  \"videos\": [\n    {\"videoId\": str, \"title\": str, \"url\": str}\n  ]\n}\n\n"
-        "Call youtube_search_playlists with both parameters: (skill, max_results). Use 5 for max_results.\n"
-        "Then call youtube_get_playlist_items with (playlist_id, max_results). Use 10 for max_results.\n"
-        "Here are prior resources for context (do not echo them back):\n{search_results}"
+        "Return ONLY JSON in this schema:\n"
+        "{ 'playlist': {'playlistId': str, 'title': str, 'url': str}, "
+        "'videos': [{'videoId': str, 'title': str, 'url': str}] }.\n"
+        "If nothing is found, respond with { 'status': 'error', 'error_message': 'No playlists found' }."
     ),
-    description="Finds relevant YouTube playlist and extracts videos.",
+    description="Finds relevant YouTube playlists and extracts videos.",
     tools=[youtube_search_playlists, youtube_get_playlist_items],
     output_key="youtube_selection",
 )
 
-
-# --- Sub-Agent 3: Refine and present curated output ---
 refine_agent = LlmAgent(
     name="RefineCurationAgent",
     model="gemini-2.5-flash",
     instruction=(
-        "Combine the web resources and YouTube selection into a concise curated plan for learning the skill.\n"
-        "Output a short introduction (1-2 sentences), then a bullet list:\n"
-        "- Top YouTube playlist (with link) and 5-10 key videos (linked)\n"
-        "- 3-5 supplemental resources (linked) from the web search\n"
-        "Keep it clean and skimmable.\n\n"
-        "Context to use (do not echo verbatim):\n"
-        "- Web search results: {search_results}\n"
-        "- YouTube selection: {youtube_selection}"
+        "Combine the web search and YouTube selection into a clean, concise curated learning plan. "
+        "If YouTube data is missing or invalid, respond with { 'status': 'error', 'error_message': 'Incomplete data' }. "
+        "Otherwise, output structured JSON in this schema:\n"
+        "{ 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...] }."
     ),
-    description="Refines results into a curated learning list.",
+    description="Refines results into a final JSON learning plan.",
 )
 
-
-# --- Sequential pipeline ---
 root_agent = SequentialAgent(
     name="ResourceFinderPipeline",
     sub_agents=[search_agent, youtube_agent, refine_agent],
