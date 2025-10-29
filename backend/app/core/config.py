@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     google_cloud_project: Optional[str] = None
     google_cloud_location: str = "us-central1"
 
+    # ---------- YouTube ----------
+    youtube_api_key: Optional[str] = None
+
     # ---------- General Config ----------
     model_config = SettingsConfigDict(
         env_file=".env",

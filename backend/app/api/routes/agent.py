@@ -8,13 +8,12 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 # import your ADK agent
-from app.services.agents.multi_tool_agent.agent import root_agent
+from app.services.agents.resource_finder_agent.agent import root_agent
 
 router = APIRouter()
 
 
-# --- ADK session/runner setup (one per process is fine for dev) ---
-APP_NAME = "weather_time_agent"  # can be any string; using your agent's name
+APP_NAME = "resource_finder_agent"
 SESSION_SERVICE = InMemorySessionService()
 RUNNER = Runner(agent=root_agent, app_name=APP_NAME, session_service=SESSION_SERVICE)
 
@@ -33,20 +32,16 @@ async def _ensure_session(user_id: str, session_id: str) -> None:
             app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
     except Exception:
-        # InMemorySessionService will raise if the session_id already exists.
-        # That's fine—we just reuse the existing session.
         pass
 
 def _extract_final_text_from_events(events_iter):
     """
     Given an async iterator of ADK Events, return the final assistant text.
     """
-    # We iterate and remember the final response
     async def _collect():
         final_text = None
         async for event in events_iter:
             if hasattr(event, "is_final_response") and event.is_final_response():
-                # ADK events carry Content -> parts -> text
                 parts = getattr(getattr(event, "content", None), "parts", None) or []
                 if parts and hasattr(parts[0], "text"):
                     final_text = parts[0].text
