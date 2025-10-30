@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS assessment_sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 7. 学习资源表（用于推荐课程项目等）
+CREATE TABLE learning_resources (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    description TEXT,
+    source TEXT,
+    resource_type VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 创建索引以提高查询性能
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_auth_provider ON users(auth_provider);
