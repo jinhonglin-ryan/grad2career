@@ -9,6 +9,7 @@ from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from google.adk.tools import google_search
+from app.services.agents.resource_finder_agent.schema import FinalPlan
 
 
 logger = logging.getLogger("resource_finder")
@@ -156,11 +157,16 @@ refine_agent = LlmAgent(
     model="gemini-2.5-flash",
     instruction=(
         "Combine the web search and YouTube selection into a clean, concise curated learning plan. "
-        "If YouTube data is missing or invalid, respond with { 'status': 'error', 'error_message': 'Incomplete data' }. "
-        "Otherwise, output structured JSON in this schema:\n"
-        "{ 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...] }."
+        "Return ONLY JSON matching the output schema. "
+        "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...] }. "
+        "Failure example: { 'status': 'error', 'error_message': '...'}.\n\n"
+        "Context (do not echo verbatim):\n"
+        "- Web search results: {search_results}\n"
+        "- YouTube selection: {youtube_selection}"
     ),
     description="Refines results into a final JSON learning plan.",
+    output_schema=FinalPlan,
+    output_key="final_plan",
 )
 
 root_agent = SequentialAgent(
