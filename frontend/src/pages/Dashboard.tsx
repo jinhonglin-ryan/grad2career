@@ -58,7 +58,7 @@ const Dashboard = () => {
             <span className={styles.logoText}>SkillBridge</span>
           </div>
           <div className={styles.navRight}>
-            <div className={styles.userInfo}>
+            <div className={styles.userInfo} onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
               <div className={styles.userAvatar}>
                 {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
               </div>
@@ -331,9 +331,15 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
-            <button className={styles.editButton} onClick={() => navigate('/assessment')}>
-              {skillProfile?.has_assessment ? 'View/Update Skills' : 'Start Assessment'}
-            </button>
+            <div className={styles.profileActions}>
+              <button className={styles.editButton} onClick={() => navigate('/profile')}>
+                <User size={18} />
+                View Full Profile
+              </button>
+              <button className={styles.secondaryButton} onClick={() => navigate('/assessment')}>
+                {skillProfile?.has_assessment ? 'View/Update Skills' : 'Start Assessment'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

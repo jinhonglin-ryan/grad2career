@@ -326,6 +326,166 @@ async def logout():
     """登出"""
     return {"message": "Logged out successfully"}
 
+@router.get("/user/profile")
+async def get_user_profile(request: Request):
+    """获取完整用户档案（用户信息 + profile + metadata）"""
+    # 从请求头获取 token
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # 获取用户基本信息
+        user_result = supabase.table('users').select('*').eq('id', user_id).execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user = user_result.data[0]
+        
+        # 获取 user_profiles 数据
+        profile_result = supabase.table('user_profiles').select('*').eq('user_id', user_id).execute()
+        profile_data = profile_result.data[0] if profile_result.data and len(profile_result.data) > 0 else None
+        
+        # 获取 metadata
+        metadata = user.get('metadata', {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        
+        # Check onboarding status
+        onboarding_completed = user.get('onboarding_completed', False)
+        if not onboarding_completed:
+            onboarding_completed = metadata.get('onboarding_completed', False)
+        
+        # 组合返回数据
+        return {
+            'user': {
+                'id': user['id'],
+                'email': user['email'],
+                'name': user.get('name'),
+                'picture': user.get('picture'),
+                'auth_provider': user.get('auth_provider', 'email'),
+                'onboarding_completed': onboarding_completed,
+                'created_at': user.get('created_at'),
+                'updated_at': user.get('updated_at')
+            },
+            'profile': profile_data,
+            'metadata': metadata
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch user profile: {str(e)}")
+
+@router.put("/user/profile")
+async def update_user_profile(profile_update: dict, request: Request):
+    """更新用户档案信息"""
+    # 从请求头获取 token
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # 准备更新的数据
+        user_updates = {}
+        profile_updates = {}
+        metadata_updates = {}
+        
+        # 可以更新的用户字段
+        if 'name' in profile_update:
+            user_updates['name'] = profile_update['name']
+        if 'picture' in profile_update:
+            user_updates['picture'] = profile_update['picture']
+        
+        # 可以更新的 profile 字段
+        if 'career_goals' in profile_update:
+            profile_updates['career_goals'] = profile_update['career_goals']
+        if 'work_experience' in profile_update:
+            profile_updates['work_experience'] = profile_update['work_experience']
+        if 'skills' in profile_update:
+            profile_updates['skills'] = profile_update['skills']
+        if 'tools' in profile_update:
+            profile_updates['tools'] = profile_update['tools']
+        if 'certifications' in profile_update:
+            profile_updates['certifications'] = profile_update['certifications']
+        
+        # 可以更新的 metadata 字段（onboarding 相关）
+        metadata_fields = [
+            'current_zip_code', 'travel_constraint', 'budget_constraint',
+            'scheduling', 'weekly_hours_constraint', 'transition_goal',
+            'transition_goal_text', 'target_sector', 'age', 'veteran_status'
+        ]
+        
+        for field in metadata_fields:
+            if field in profile_update:
+                metadata_updates[field] = profile_update[field]
+        
+        # 更新 users 表
+        if user_updates:
+            user_updates['updated_at'] = datetime.utcnow().isoformat()
+            supabase.table('users').update(user_updates).eq('id', user_id).execute()
+        
+        # 更新 user_profiles 表
+        if profile_updates:
+            profile_updates['updated_at'] = datetime.utcnow().isoformat()
+            # 检查 profile 是否存在
+            existing_profile = supabase.table('user_profiles').select('*').eq('user_id', user_id).execute()
+            if existing_profile.data and len(existing_profile.data) > 0:
+                supabase.table('user_profiles').update(profile_updates).eq('user_id', user_id).execute()
+            else:
+                # 如果不存在，创建新的 profile
+                profile_updates['user_id'] = user_id
+                profile_updates['created_at'] = datetime.utcnow().isoformat()
+                supabase.table('user_profiles').insert(profile_updates).execute()
+        
+        # 更新 metadata
+        if metadata_updates:
+            # 获取现有 metadata
+            user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
+            existing_metadata = {}
+            if user_result.data and len(user_result.data) > 0:
+                existing_metadata = user_result.data[0].get('metadata', {})
+                if not isinstance(existing_metadata, dict):
+                    existing_metadata = {}
+            
+            # 合并 metadata
+            updated_metadata = {**existing_metadata, **metadata_updates}
+            
+            # 更新 users 表
+            supabase.table('users').update({
+                'metadata': updated_metadata,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', user_id).execute()
+        
+        return {
+            "message": "Profile updated successfully",
+            "updated_fields": {
+                "user": list(user_updates.keys()),
+                "profile": list(profile_updates.keys()),
+                "metadata": list(metadata_updates.keys())
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update user profile: {str(e)}")
+
 @router.post("/user/profile")
 async def save_user_profile(profile_data: dict, request: Request):
     """保存用户 onboarding 数据（Logistical Constraints + Motivation & Context）"""

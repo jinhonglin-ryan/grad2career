@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # ---------- YouTube ----------
     youtube_api_key: Optional[str] = None
 
+    # ---------- CareerOneStop API ----------
+    careeronestop_api_key: Optional[str] = None
+
+    # ---------- Credential Engine API ----------
+    credential_engine_api_key: Optional[str] = None
+
     # ---------- General Config ----------
     model_config = SettingsConfigDict(
         env_file=".env",
