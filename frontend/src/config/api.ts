@@ -10,9 +10,12 @@ export const API_ENDPOINTS = {
     googleCallback: '/auth/google/callback',
   },
   skills: {
-    assess: '/skills/assess',
+    assess: '/skills/assess/conversation',
+    start: '/skills/assess/start',
     extract: '/skills/extract',
     profile: '/skills/profile',
+    session: '/skills/assess/session',
+    getProfile: '/skills/profile', // GET /skills/profile/{user_id}
   },
   careers: {
     match: '/careers/match',

@@ -1,11 +1,51 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import styles from './Dashboard.module.css';
+
+interface SkillProfile {
+  has_assessment: boolean;
+  extracted_skills?: Array<{
+    category: string;
+    user_phrase: string;
+    onet_task_codes: string[];
+  }>;
+  user_profile?: {
+    skills?: string[];
+    tools?: string[];
+    work_experience?: string;
+  };
+  updated_at?: string;
+}
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSkillProfile = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await api.get(`/skills/profile/${user.id}`);
+        setSkillProfile(response.data);
+      } catch (error) {
+        console.error('Error fetching skill profile:', error);
+        setSkillProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSkillProfile();
+  }, [user?.id]);
 
   return (
     <div className={styles.container}>
@@ -78,7 +118,9 @@ const Dashboard = () => {
                 </defs>
               </svg>
               <div className={styles.progressText}>
-                <span className={styles.progressPercent}>70%</span>
+                <span className={styles.progressPercent}>
+                  {skillProfile?.has_assessment ? '100%' : '25%'}
+                </span>
                 <span className={styles.progressLabel}>Complete</span>
               </div>
             </div>
@@ -101,10 +143,18 @@ const Dashboard = () => {
             </div>
             <div className={styles.cardContent}>
               <h3>Skill Assessment</h3>
-              <p>Identify and document your transferable skills with our AI assistant</p>
+              <p>
+                {skillProfile?.has_assessment 
+                  ? `You have ${skillProfile.extracted_skills?.length || 0} identified skills. Click to view or update.`
+                  : 'Identify and document your transferable skills with our AI assistant'}
+              </p>
               <div className={styles.cardMeta}>
                 <CheckCircle2 size={16} />
-                <span>~15 minutes</span>
+                <span>
+                  {skillProfile?.has_assessment 
+                    ? `${skillProfile.extracted_skills?.length || 0} skills identified`
+                    : '~15 minutes'}
+                </span>
               </div>
             </div>
             <ArrowRight className={styles.cardArrow} size={24} />
@@ -167,7 +217,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className={`${styles.journeyStep} ${styles.current}`}>
+              <div className={`${styles.journeyStep} ${skillProfile?.has_assessment ? styles.completed : styles.current}`}>
                 <div className={styles.stepIndicator}>
                   <div className={styles.stepDot}></div>
                   <div className={styles.stepLine}></div>
@@ -175,16 +225,20 @@ const Dashboard = () => {
                 <div className={styles.stepDetails}>
                   <h4>Assess Your Skills</h4>
                   <p>Chat with our AI to build your skill profile</p>
-                  <button 
-                    className={styles.stepAction}
-                    onClick={() => navigate('/assessment')}
-                  >
-                    Start Now →
-                  </button>
+                  {skillProfile?.has_assessment ? (
+                    <span className={styles.stepStatus}>Completed ✓</span>
+                  ) : (
+                    <button 
+                      className={styles.stepAction}
+                      onClick={() => navigate('/assessment')}
+                    >
+                      Start Now →
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className={styles.journeyStep}>
+              <div className={`${styles.journeyStep} ${skillProfile?.has_assessment ? styles.current : ''}`}>
                 <div className={styles.stepIndicator}>
                   <div className={styles.stepDot}></div>
                   <div className={styles.stepLine}></div>
@@ -192,6 +246,14 @@ const Dashboard = () => {
                 <div className={styles.stepDetails}>
                   <h4>Explore Careers</h4>
                   <p>Find jobs that match your skills and interests</p>
+                  {skillProfile?.has_assessment && (
+                    <button 
+                      className={styles.stepAction}
+                      onClick={() => navigate('/careers')}
+                    >
+                      Explore Now →
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -228,7 +290,10 @@ const Dashboard = () => {
                 <div>
                   <span className={styles.label}>Skills Identified</span>
                   <span className={styles.value}>
-                    {user?.skillProfile?.skills?.length || 0} skills
+                    {loading ? 'Loading...' : 
+                     skillProfile?.has_assessment 
+                       ? `${skillProfile.extracted_skills?.length || skillProfile.user_profile?.skills?.length || 0} skills`
+                       : '0 skills'}
                   </span>
                 </div>
               </div>
@@ -238,7 +303,9 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <span className={styles.label}>Career Matches</span>
-                  <span className={styles.value}>Pending assessment</span>
+                  <span className={styles.value}>
+                    {skillProfile?.has_assessment ? 'Ready to explore' : 'Pending assessment'}
+                  </span>
                 </div>
               </div>
               <div className={styles.profileItem}>
@@ -251,8 +318,21 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+            {skillProfile?.has_assessment && skillProfile.extracted_skills && skillProfile.extracted_skills.length > 0 && (
+              <div className={styles.skillsPreview}>
+                <h4>Top Skills:</h4>
+                <div className={styles.skillTags}>
+                  {skillProfile.extracted_skills.slice(0, 3).map((skill, index) => (
+                    <span key={index} className={styles.skillTag}>
+                      {skill.user_phrase.substring(0, 30)}
+                      {skill.user_phrase.length > 30 ? '...' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <button className={styles.editButton} onClick={() => navigate('/assessment')}>
-              Update Profile
+              {skillProfile?.has_assessment ? 'View/Update Skills' : 'Start Assessment'}
             </button>
           </div>
         </div>
