@@ -9,7 +9,7 @@ from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from google.adk.tools import google_search
-from app.services.agents.resource_finder_agent.schema import FinalPlan
+from .schema import FinalPlan
 
 
 logger = logging.getLogger("resource_finder")
@@ -125,7 +125,7 @@ search_agent = LlmAgent(
     model="gemini-2.5-flash",
     instruction=(
         "You are a research assistant. Given the user's requested skill/topic, use Google Search to find "
-        "5-10 popular, high-quality learning resources (courses, tutorials, documentation, playlists, channels). "
+        "5-10 popular, high-quality learning resources (courses, tutorials, documentation, playlists, channels) from resources such as Reddit, Youtube, and other reputable sources. "
         "Prefer reputable sources and up-to-date content. Output ONLY JSON in this schema:\n"
         "{ 'resources': [{'title': str, 'source': str, 'type': str, 'url': str}] }"
     ),
