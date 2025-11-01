@@ -1,27 +1,40 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, User, Target, Briefcase as WorkIcon, Award, MapPin } from 'lucide-react';
+import { Briefcase, MapPin, Clock, DollarSign, Calendar, Target, User, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import styles from './OnboardingPage.module.css';
 
 interface FormData {
-  currentRole?: string;
-  yearsOfExperience?: string;
-  industry?: string;
-  location?: string;
-  skills: string[];
-  workExperience: string;
-  careerGoals: string;
-  certifications: string[];
-  lookingFor: string[];
+  // Screen 1: Logistical Constraints
+  currentZipCode: string;
+  travelConstraint: string;
+  budgetConstraint: string;
+  scheduling: string;
+  weeklyHoursConstraint: string;
+  
+  // Screen 2: Motivation & Context
+  transitionGoal: string;
+  targetSector: string;
+  age?: string;
+  veteranStatus?: string;
+}
+
+interface Question {
+  id: string;
+  field: keyof FormData;
+  label: string;
+  icon: React.ReactNode;
+  type: 'input' | 'radio';
+  options?: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  required: boolean;
+  hint?: string;
 }
 
 const OnboardingPage = () => {
-  const [step, setStep] = useState(1);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [skillInput, setSkillInput] = useState('');
-  const [certInput, setCertInput] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -34,95 +47,157 @@ const OnboardingPage = () => {
   }, [navigate]);
 
   const [formData, setFormData] = useState<FormData>({
-    currentRole: '',
-    yearsOfExperience: '',
-    industry: '',
-    location: '',
-    skills: [],
-    workExperience: '',
-    careerGoals: '',
-    certifications: [],
-    lookingFor: [],
+    currentZipCode: '',
+    travelConstraint: '',
+    budgetConstraint: '',
+    scheduling: '',
+    weeklyHoursConstraint: '',
+    transitionGoal: '',
+    targetSector: '',
+    age: undefined,
+    veteranStatus: undefined,
   });
 
-  const totalSteps = 4;
-
-  const industries = [
-    'Coal Mining',
-    'Oil & Gas',
-    'Manufacturing',
-    'Construction',
-    'Transportation',
-    'Agriculture',
-    'Other',
+  // Define all questions in order
+  const questions: Question[] = [
+    {
+      id: 'zipCode',
+      field: 'currentZipCode',
+      label: 'Current Zip Code',
+      icon: <MapPin size={24} />,
+      type: 'input',
+      placeholder: '12345',
+      required: true,
+      hint: '5-digit zip code required',
+    },
+    {
+      id: 'travel',
+      field: 'travelConstraint',
+      label: 'Travel Constraint',
+      icon: <Clock size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: '15min', label: 'Up to 15 Minutes' },
+        { value: '30min', label: 'Up to 30 Minutes' },
+        { value: '45min', label: 'Up to 45 Minutes' },
+        { value: 'remote', label: 'I need remote or flexible learning' },
+      ],
+    },
+    {
+      id: 'budget',
+      field: 'budgetConstraint',
+      label: 'Budget Constraint',
+      icon: <DollarSign size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: 'free', label: 'Must be Free or Grant-Eligible' },
+        { value: '1000', label: 'I can budget up to $1,000' },
+        { value: 'flexible', label: 'I have funds for training' },
+      ],
+    },
+    {
+      id: 'scheduling',
+      field: 'scheduling',
+      label: 'Scheduling',
+      icon: <Calendar size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: 'fulltime', label: 'Full-time, weekdays' },
+        { value: 'evenings', label: 'Evenings or weekends only' },
+        { value: 'flexible', label: 'Fully flexible or self-paced' },
+      ],
+    },
+    {
+      id: 'weeklyHours',
+      field: 'weeklyHoursConstraint',
+      label: 'Weekly Hours Constraint',
+      icon: <Clock size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: '1-5', label: '1-5 hours (Passive/Self-Study)' },
+        { value: '6-15', label: '6-15 hours (Part-time commitment)' },
+        { value: '16-30', label: '16-30 hours (Dedicated training)' },
+        { value: '30+', label: '30+ hours (Full-time commitment)' },
+      ],
+    },
+    {
+      id: 'transitionGoal',
+      field: 'transitionGoal',
+      label: 'Transition Goal',
+      icon: <Target size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: 'quick', label: 'Get back to work quickly (6 months)' },
+        { value: 'earnings', label: 'Higher long-term earnings' },
+        { value: 'stable', label: 'Career change to a stable industry' },
+      ],
+    },
+    {
+      id: 'targetSector',
+      field: 'targetSector',
+      label: 'Target Sector',
+      icon: <Target size={24} />,
+      type: 'radio',
+      required: true,
+      options: [
+        { value: 'renewable', label: 'Renewable Energy (Solar/Wind)' },
+        { value: 'construction', label: 'Construction/HVAC Trades' },
+        { value: 'manufacturing', label: 'Manufacturing' },
+        { value: 'utility', label: 'Utility/Infrastructure' },
+        { value: 'unknown', label: "I don't know yet" },
+      ],
+    },
+    {
+      id: 'age',
+      field: 'age',
+      label: 'Age',
+      icon: <User size={24} />,
+      type: 'radio',
+      required: false,
+      hint: 'Optional - Only used to match with age-restricted grant programs',
+      options: [
+        { value: '18-25', label: '18-25' },
+        { value: '26-40', label: '26-40' },
+        { value: '41-55', label: '41-55' },
+        { value: '56+', label: '56+' },
+      ],
+    },
+    {
+      id: 'veteranStatus',
+      field: 'veteranStatus',
+      label: 'Veteran Status',
+      icon: <User size={24} />,
+      type: 'radio',
+      required: false,
+      hint: 'Optional - Used to surface veteran-specific training, funding, and resources',
+      options: [
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No' },
+        { value: 'prefer-not', label: 'Prefer Not to Say' },
+      ],
+    },
   ];
 
-  const careerGoalOptions = [
-    'Transition to Renewable Energy',
-    'Learn New Technology Skills',
-    'Get Industry Certification',
-    'Increase Salary',
-    'Better Work-Life Balance',
-    'Remote Work Opportunity',
-  ];
-
-  const handleSkillAdd = () => {
-    if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
-      setFormData({
-        ...formData,
-        skills: [...formData.skills, skillInput.trim()],
-      });
-      setSkillInput('');
-    }
-  };
-
-  const handleSkillRemove = (skill: string) => {
-    setFormData({
-      ...formData,
-      skills: formData.skills.filter((s) => s !== skill),
-    });
-  };
-
-  const handleCertAdd = () => {
-    if (certInput.trim() && !formData.certifications.includes(certInput.trim())) {
-      setFormData({
-        ...formData,
-        certifications: [...formData.certifications, certInput.trim()],
-      });
-      setCertInput('');
-    }
-  };
-
-  const handleCertRemove = (cert: string) => {
-    setFormData({
-      ...formData,
-      certifications: formData.certifications.filter((c) => c !== cert),
-    });
-  };
-
-  const handleLookingForToggle = (option: string) => {
-    if (formData.lookingFor.includes(option)) {
-      setFormData({
-        ...formData,
-        lookingFor: formData.lookingFor.filter((o) => o !== option),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        lookingFor: [...formData.lookingFor, option],
-      });
-    }
-  };
+  const totalQuestions = questions.length;
+  const currentQuestion = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === totalQuestions - 1;
 
   const handleNext = () => {
-    if (step < totalSteps) {
-      setStep(step + 1);
+    if (currentQuestionIndex < totalQuestions - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      handleSubmit();
     }
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
 
@@ -130,13 +205,10 @@ const OnboardingPage = () => {
     setLoading(true);
     try {
       await api.post('/auth/user/profile', formData);
-
-      // 标记用户已完成 onboarding
       localStorage.setItem('onboarding_completed', 'true');
-      
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('Failed to save profile:', error);
+      console.error('Failed to save onboarding data:', error);
       alert(error.response?.data?.detail || 'Failed to save your information. Please try again.');
     } finally {
       setLoading(false);
@@ -144,330 +216,149 @@ const OnboardingPage = () => {
   };
 
   const canProceed = () => {
-    switch (step) {
-      case 1:
-        return formData.currentRole && formData.yearsOfExperience && formData.industry;
-      case 2:
-        return formData.skills.length > 0 && formData.workExperience.trim();
-      case 3:
-        return formData.careerGoals.trim() && formData.lookingFor.length > 0;
-      case 4:
-        return true;
-      default:
-        return false;
+    const value = formData[currentQuestion.field];
+    
+    if (currentQuestion.type === 'input') {
+      // For zip code, check 5 digits
+      if (currentQuestion.field === 'currentZipCode') {
+        return typeof value === 'string' && value.trim().length === 5 && /^\d{5}$/.test(value);
+      }
+      return typeof value === 'string' && value.trim().length > 0;
+    } else {
+      // For radio buttons, check if a value is selected
+      return value !== undefined && value !== '';
     }
+  };
+
+  const getQuestionValue = () => {
+    return formData[currentQuestion.field] || '';
+  };
+
+  const handleValueChange = (value: string) => {
+    setFormData({
+      ...formData,
+      [currentQuestion.field]: value,
+    });
   };
 
   return (
     <div className={styles.container}>
-      <div className={styles.sidebar}>
+      <div className={styles.progressSidebar}>
         <div className={styles.logo}>
-          <Briefcase size={32} />
+          <Briefcase size={28} />
           <span>SkillBridge</span>
         </div>
 
-        <div className={styles.progress}>
-          <h3>Getting Started</h3>
-          <p>Help us understand your background</p>
-          
-          <div className={styles.steps}>
-            {[1, 2, 3, 4].map((s) => (
-              <div
-                key={s}
-                className={`${styles.stepItem} ${
-                  s === step ? styles.active : s < step ? styles.completed : ''
-                }`}
-              >
-                <div className={styles.stepNumber}>{s}</div>
-                <div className={styles.stepLabel}>
-                  {s === 1 && 'Basic Info'}
-                  {s === 2 && 'Experience'}
-                  {s === 3 && 'Goals'}
-                  {s === 4 && 'Review'}
-                </div>
-              </div>
-            ))}
+        <div className={styles.progressSection}>
+          <div className={styles.progressHeader}>
+            <h3>Getting Started</h3>
+            <p>Question {currentQuestionIndex + 1} of {totalQuestions}</p>
           </div>
-        </div>
 
-        <div className={styles.helpText}>
-          <p>💡 This helps us match you with the best career opportunities</p>
+          <div className={styles.progressList}>
+            {questions.map((question, index) => {
+              const isCompleted = index < currentQuestionIndex;
+              const isCurrent = index === currentQuestionIndex;
+              const hasValue = formData[question.field] !== undefined && 
+                              formData[question.field] !== '';
+
+              return (
+                <div
+                  key={question.id}
+                  className={`${styles.progressItem} ${
+                    isCompleted ? styles.completed : ''
+                  } ${isCurrent ? styles.current : ''} ${
+                    !isCompleted && !isCurrent && hasValue ? styles.partial : ''
+                  }`}
+                >
+                  <div className={styles.progressIcon}>
+                    {isCompleted ? (
+                      <CheckCircle2 size={20} />
+                    ) : (
+                      question.icon
+                    )}
+                  </div>
+                  <div className={styles.progressLabel}>
+                    <span className={styles.questionNumber}>{index + 1}</span>
+                    <span className={styles.questionText}>{question.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <div className={styles.mainContent}>
-        <div className={styles.formContainer}>
-          {/* Step 1: Basic Information */}
-          {step === 1 && (
-            <div className={styles.stepContent}>
-              <h1 className={styles.stepTitle}>
-                <User size={32} />
-                Tell us about your current situation
-              </h1>
-              <p className={styles.stepSubtitle}>This helps us understand your starting point</p>
-
-              <div className={styles.formGroup}>
-                <label>Current or Most Recent Role *</label>
-                <input
-                  type="text"
-                  value={formData.currentRole}
-                  onChange={(e) => setFormData({ ...formData, currentRole: e.target.value })}
-                  placeholder="e.g., Coal Miner, Equipment Operator"
-                />
-              </div>
-
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Years of Experience *</label>
-                  <select
-                    value={formData.yearsOfExperience}
-                    onChange={(e) => setFormData({ ...formData, yearsOfExperience: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    <option value="0-2">0-2 years</option>
-                    <option value="3-5">3-5 years</option>
-                    <option value="6-10">6-10 years</option>
-                    <option value="11-20">11-20 years</option>
-                    <option value="20+">20+ years</option>
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>Industry *</label>
-                  <select
-                    value={formData.industry}
-                    onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    {industries.map((ind) => (
-                      <option key={ind} value={ind}>
-                        {ind}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Current Location</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="City, State"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Skills & Experience */}
-          {step === 2 && (
-            <div className={styles.stepContent}>
-              <h1 className={styles.stepTitle}>
-                <WorkIcon size={32} />
-                Your Skills & Experience
-              </h1>
-              <p className={styles.stepSubtitle}>What skills and experience do you bring?</p>
-
-              <div className={styles.formGroup}>
-                <label>Work Experience Description *</label>
-                <textarea
-                  value={formData.workExperience}
-                  onChange={(e) => setFormData({ ...formData, workExperience: e.target.value })}
-                  placeholder="Describe your main responsibilities, tools you've used, and achievements..."
-                  rows={6}
-                />
-                <span className={styles.hint}>
-                  Include specific tools, equipment, or technologies you've worked with
-                </span>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Skills *</label>
-                <div className={styles.tagInput}>
-                  <input
-                    type="text"
-                    value={skillInput}
-                    onChange={(e) => setSkillInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleSkillAdd())}
-                    placeholder="e.g., Heavy Equipment Operation, Safety Management"
-                  />
-                  <button type="button" onClick={handleSkillAdd}>
-                    Add
-                  </button>
-                </div>
-                <div className={styles.tags}>
-                  {formData.skills.map((skill) => (
-                    <span key={skill} className={styles.tag}>
-                      {skill}
-                      <button onClick={() => handleSkillRemove(skill)}>×</button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Certifications (if any)</label>
-                <div className={styles.tagInput}>
-                  <input
-                    type="text"
-                    value={certInput}
-                    onChange={(e) => setCertInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleCertAdd())}
-                    placeholder="e.g., MSHA Certification, CDL License"
-                  />
-                  <button type="button" onClick={handleCertAdd}>
-                    Add
-                  </button>
-                </div>
-                <div className={styles.tags}>
-                  {formData.certifications.map((cert) => (
-                    <span key={cert} className={styles.tag}>
-                      {cert}
-                      <button onClick={() => handleCertRemove(cert)}>×</button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Career Goals */}
-          {step === 3 && (
-            <div className={styles.stepContent}>
-              <h1 className={styles.stepTitle}>
-                <Target size={32} />
-                What are your career goals?
-              </h1>
-              <p className={styles.stepSubtitle}>Help us find the perfect match for you</p>
-
-              <div className={styles.formGroup}>
-                <label>Career Goals & Aspirations *</label>
-                <textarea
-                  value={formData.careerGoals}
-                  onChange={(e) => setFormData({ ...formData, careerGoals: e.target.value })}
-                  placeholder="What do you hope to achieve in your next career? What motivates you?"
-                  rows={5}
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>What are you looking for? * (Select all that apply)</label>
-                <div className={styles.checkboxGrid}>
-                  {careerGoalOptions.map((option) => (
-                    <label key={option} className={styles.checkboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={formData.lookingFor.includes(option)}
-                        onChange={() => handleLookingForToggle(option)}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Review */}
-          {step === 4 && (
-            <div className={styles.stepContent}>
-              <h1 className={styles.stepTitle}>
-                <Award size={32} />
-                Review Your Information
-              </h1>
-              <p className={styles.stepSubtitle}>Make sure everything looks good</p>
-
-              <div className={styles.reviewSection}>
-                <h3>Basic Information</h3>
-                <div className={styles.reviewItem}>
-                  <strong>Role:</strong> {formData.currentRole}
-                </div>
-                <div className={styles.reviewItem}>
-                  <strong>Experience:</strong> {formData.yearsOfExperience} years
-                </div>
-                <div className={styles.reviewItem}>
-                  <strong>Industry:</strong> {formData.industry}
-                </div>
-                {formData.location && (
-                  <div className={styles.reviewItem}>
-                    <strong>Location:</strong> {formData.location}
-                  </div>
-                )}
-              </div>
-
-              <div className={styles.reviewSection}>
-                <h3>Skills</h3>
-                <div className={styles.tags}>
-                  {formData.skills.map((skill) => (
-                    <span key={skill} className={styles.reviewTag}>
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {formData.certifications.length > 0 && (
-                <div className={styles.reviewSection}>
-                  <h3>Certifications</h3>
-                  <div className={styles.tags}>
-                    {formData.certifications.map((cert) => (
-                      <span key={cert} className={styles.reviewTag}>
-                        {cert}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+        <div className={styles.questionContainer}>
+          <div className={styles.questionHeader}>
+            <div className={styles.questionIcon}>{currentQuestion.icon}</div>
+            <div>
+              <h1 className={styles.questionTitle}>{currentQuestion.label}</h1>
+              {currentQuestion.hint && (
+                <p className={styles.questionHint}>{currentQuestion.hint}</p>
               )}
-
-              <div className={styles.reviewSection}>
-                <h3>Career Goals</h3>
-                <p>{formData.careerGoals}</p>
-              </div>
-
-              <div className={styles.reviewSection}>
-                <h3>Looking For</h3>
-                <ul className={styles.reviewList}>
-                  {formData.lookingFor.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
+              {!currentQuestion.required && (
+                <span className={styles.optionalBadge}>(Optional)</span>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Navigation Buttons */}
-          <div className={styles.navigation}>
-            {step > 1 && (
+          <div className={styles.questionContent}>
+            {currentQuestion.type === 'input' ? (
+              <div className={styles.inputWrapper}>
+                <input
+                  type="text"
+                  value={getQuestionValue() as string}
+                  onChange={(e) => {
+                    if (currentQuestion.field === 'currentZipCode') {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 5);
+                      handleValueChange(value);
+                    } else {
+                      handleValueChange(e.target.value);
+                    }
+                  }}
+                  placeholder={currentQuestion.placeholder || 'Enter your answer...'}
+                  className={styles.questionInput}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className={styles.optionsList}>
+                {currentQuestion.options?.map((option) => (
+                  <label
+                    key={option.value}
+                    className={`${styles.optionLabel} ${
+                      getQuestionValue() === option.value ? styles.selected : ''
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={currentQuestion.field}
+                      value={option.value}
+                      checked={getQuestionValue() === option.value}
+                      onChange={() => handleValueChange(option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.questionNavigation}>
+            {currentQuestionIndex > 0 && (
               <button onClick={handleBack} className={styles.backButton}>
                 Back
               </button>
             )}
-            
-            {step < totalSteps ? (
-              <button
-                onClick={handleNext}
-                className={styles.nextButton}
-                disabled={!canProceed()}
-              >
-                Continue
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                className={styles.submitButton}
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Complete Setup'}
-              </button>
-            )}
-          </div>
-
-          <div className={styles.progressBar}>
-            <div
-              className={styles.progressFill}
-              style={{ width: `${(step / totalSteps) * 100}%` }}
-            />
+            <button
+              onClick={handleNext}
+              className={styles.nextButton}
+              disabled={!canProceed() || loading}
+            >
+              {loading ? 'Saving...' : isLastQuestion ? 'Complete' : 'Next'}
+            </button>
           </div>
         </div>
       </div>
@@ -476,4 +367,3 @@ const OnboardingPage = () => {
 };
 
 export default OnboardingPage;
-

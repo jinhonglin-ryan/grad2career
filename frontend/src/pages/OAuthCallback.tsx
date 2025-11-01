@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Briefcase } from 'lucide-react';
+import api from '../services/api';
 import styles from './OAuthCallback.module.css';
 
 const OAuthCallback = () => {
@@ -33,16 +34,38 @@ const OAuthCallback = () => {
           setStatus('success');
           setMessage('Login successful! Redirecting...');
           
-          // Redirect based on user status
-          setTimeout(() => {
-            if (isNewUser === 'true') {
-              // New user - go to onboarding
-              navigate('/onboarding', { replace: true });
+          // Fetch user profile to check onboarding status
+          try {
+            const response = await api.get('/auth/me');
+            const userData = response.data;
+            // Store onboarding status in localStorage
+            if (userData.onboarding_completed) {
+              localStorage.setItem('onboarding_completed', 'true');
             } else {
-              // Existing user - go to dashboard
-              navigate('/dashboard', { replace: true });
+              localStorage.removeItem('onboarding_completed');
             }
-          }, 1500);
+            
+            // Redirect based on onboarding status
+            setTimeout(() => {
+              if (isNewUser === 'true' || !userData.onboarding_completed) {
+                // New user or incomplete onboarding - go to onboarding
+                navigate('/onboarding', { replace: true });
+              } else {
+                // Existing user with completed onboarding - go to dashboard
+                navigate('/dashboard', { replace: true });
+              }
+            }, 1500);
+          } catch (err) {
+            console.error('Failed to fetch user profile:', err);
+            // Fallback to new_user parameter if API call fails
+            setTimeout(() => {
+              if (isNewUser === 'true') {
+                navigate('/onboarding', { replace: true });
+              } else {
+                navigate('/dashboard', { replace: true });
+              }
+            }, 1500);
+          }
         } else {
           setStatus('error');
           setMessage('Authentication failed. No token received.');

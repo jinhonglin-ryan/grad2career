@@ -49,10 +49,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchUserProfile = async () => {
     try {
       const response = await api.get('/auth/me');
-      setUser(response.data);
+      const userData = response.data;
+      setUser(userData);
+      // Store onboarding status in localStorage for easy access
+      if (userData.onboarding_completed) {
+        localStorage.setItem('onboarding_completed', 'true');
+      } else {
+        localStorage.removeItem('onboarding_completed');
+      }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       localStorage.removeItem('authToken');
+      localStorage.removeItem('onboarding_completed');
     } finally {
       setLoading(false);
     }
@@ -64,6 +72,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { token, user: userData } = response.data;
       localStorage.setItem('authToken', token);
       setUser(userData);
+      // Store onboarding status in localStorage
+      if (userData.onboarding_completed) {
+        localStorage.setItem('onboarding_completed', 'true');
+      } else {
+        localStorage.removeItem('onboarding_completed');
+      }
+      return userData; // Return user data so LoginPage can check onboarding status
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

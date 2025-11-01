@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
     picture TEXT,
     auth_provider VARCHAR(50) DEFAULT 'email', -- 'email' 或 'google'
     password_hash TEXT, -- 用于邮箱密码登录
-    metadata JSONB DEFAULT '{}'::jsonb, -- 额外的用户元数据
+    metadata JSONB DEFAULT '{}'::jsonb, -- 额外的用户元数据（包含 onboarding 数据）
+    onboarding_completed BOOLEAN DEFAULT FALSE, -- onboarding 完成状态
+    onboarding_completed_at TIMESTAMP WITH TIME ZONE, -- onboarding 完成时间
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

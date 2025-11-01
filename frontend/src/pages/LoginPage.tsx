@@ -19,8 +19,14 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const response = await login(email, password);
+      // Check if onboarding is completed from the user object
+      const user = response as any;
+      if (user?.onboarding_completed === false || user?.onboarding_completed === undefined) {
+        navigate('/onboarding');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password');
     } finally {

@@ -46,7 +46,7 @@ const SignUpPage = () => {
 
     try {
       await signup(email, password, name);
-      navigate('/assessment');
+      navigate('/onboarding');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create account. Please try again.');
     } finally {

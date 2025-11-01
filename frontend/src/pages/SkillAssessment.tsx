@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Briefcase, LogOut, CheckCircle, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import styles from './SkillAssessment.module.css';
@@ -41,16 +41,13 @@ const SkillAssessment = () => {
   const [currentTurn, setCurrentTurn] = useState<number>(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showValidation, setShowValidation] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [assessmentCompleted, setAssessmentCompleted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Ensure layout is calculated correctly on mount/navigation
   useLayoutEffect(() => {
-    // Force layout recalculation
-    setIsMounted(true);
-    
     // Scroll to top after a small delay to ensure nav is rendered
     setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -134,6 +131,53 @@ const SkillAssessment = () => {
     }
   }, [user?.id, skillProfile, sessionId]);
 
+  // Helper function to clean response messages (remove JSON schema if present)
+  const cleanResponseMessage = (message: string): string => {
+    // Remove JSON blocks that might be in the response
+    let cleaned = message;
+    
+    // Remove JSON code blocks
+    if (cleaned.includes('```json')) {
+      const jsonStart = cleaned.indexOf('```json');
+      const jsonEnd = cleaned.indexOf('```', jsonStart + 7);
+      if (jsonEnd > jsonStart) {
+        // Keep text before JSON block
+        const beforeJson = cleaned.substring(0, jsonStart).trim();
+        // Keep text after JSON block if any
+        const afterJson = cleaned.substring(jsonEnd + 3).trim();
+        cleaned = beforeJson + (afterJson ? '\n\n' + afterJson : '');
+      }
+    } else if (cleaned.includes('```')) {
+      // Handle plain code blocks
+      const codeStart = cleaned.indexOf('```');
+      const codeEnd = cleaned.indexOf('```', codeStart + 3);
+      if (codeEnd > codeStart) {
+        const beforeCode = cleaned.substring(0, codeStart).trim();
+        const afterCode = cleaned.substring(codeEnd + 3).trim();
+        cleaned = beforeCode + (afterCode ? '\n\n' + afterCode : '');
+      }
+    }
+    
+    // Remove standalone JSON objects that look like schemas
+    if (cleaned.includes('"user_id"') || cleaned.includes('"extracted_skills"')) {
+      // Try to find and remove JSON object
+      const jsonObjStart = cleaned.indexOf('{');
+      const jsonObjEnd = cleaned.lastIndexOf('}');
+      if (jsonObjStart !== -1 && jsonObjEnd !== -1 && jsonObjEnd > jsonObjStart) {
+        // Check if this looks like the schema by looking for key fields
+        const jsonSection = cleaned.substring(jsonObjStart, jsonObjEnd + 1);
+        if (jsonSection.includes('"user_id"') && jsonSection.includes('"extracted_skills"')) {
+          // Remove the JSON object, keep text before and after
+          const beforeJson = cleaned.substring(0, jsonObjStart).trim();
+          const afterJson = cleaned.substring(jsonObjEnd + 1).trim();
+          cleaned = beforeJson + (afterJson ? '\n\n' + afterJson : '');
+        }
+      }
+    }
+    
+    return cleaned.trim() || message; // Return original if cleaning removes everything
+  };
+
   const handleSend = async () => {
     if (!input.trim() || loading || !sessionId) return;
 
@@ -154,9 +198,12 @@ const SkillAssessment = () => {
         user_id: user?.id || 'web'
       });
 
+      // Clean the response to remove any JSON schema that shouldn't be shown
+      const cleanedResponse = cleanResponseMessage(response.data.response);
+      
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.data.response,
+        content: cleanedResponse,
         timestamp: new Date(),
       };
 
@@ -168,10 +215,11 @@ const SkillAssessment = () => {
         setSkillProfile(response.data.skill_profile);
       }
 
-      // If assessment is complete, show validation
+      // If assessment is complete, show validation (don't set completed yet - wait for user confirmation)
       if (response.data.is_complete && response.data.skill_profile) {
         setSkillProfile(response.data.skill_profile);
         setShowValidation(true);
+        // Don't set assessmentCompleted yet - wait for user to confirm
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -194,13 +242,20 @@ const SkillAssessment = () => {
   };
 
   const handleConfirmProfile = () => {
-    // Navigate to career matching with skill profile
-    navigate('/careers', { state: { skillProfile } });
+    // Show completion UI instead of navigating immediately
+    setAssessmentCompleted(true);
+    setShowValidation(false);
   };
 
   const handleEditProfile = () => {
     setShowValidation(false);
+    setAssessmentCompleted(false);
     // Allow user to continue conversation if needed
+  };
+
+  const handleGoToCareers = () => {
+    // Navigate to career matching with skill profile
+    navigate('/careers', { state: { skillProfile } });
   };
 
   const handleComplete = () => {
@@ -393,7 +448,7 @@ const SkillAssessment = () => {
               </div>
             )}
 
-            {showValidation && (
+            {showValidation && !assessmentCompleted && (
               <div className={styles.validationSection}>
                 <div className={styles.validationHeader}>
                   <CheckCircle className={styles.validationIcon} />
@@ -410,6 +465,32 @@ const SkillAssessment = () => {
                   </button>
                   <button onClick={handleEditProfile} className={styles.editButton}>
                     Edit Profile
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {assessmentCompleted && (
+              <div className={styles.completionSection}>
+                <div className={styles.completionHeader}>
+                  <CheckCircle className={styles.completionIcon} />
+                  <h3>Assessment Complete! 🎉</h3>
+                </div>
+                <p className={styles.completionText}>
+                  Your skill profile has been saved successfully. You can now explore career opportunities
+                  that match your skills or update your profile anytime.
+                </p>
+                <div className={styles.completionActions}>
+                  <button onClick={handleGoToCareers} className={styles.careerButton}>
+                    <Briefcase size={18} />
+                    Explore Careers
+                  </button>
+                  <button onClick={() => navigate('/dashboard')} className={styles.dashboardButton}>
+                    Go to Dashboard
+                  </button>
+                  <button onClick={handleRedoAssessment} className={styles.redoButtonSmall}>
+                    <RefreshCw size={16} />
+                    Redo Assessment
                   </button>
                 </div>
               </div>

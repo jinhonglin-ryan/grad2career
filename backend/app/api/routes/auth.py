@@ -134,21 +134,41 @@ async def google_callback(code: str = None, error: str = None):
             }
             supabase.table('users').update(update_data).eq('id', user['id']).execute()
             
-            # 检查用户是否有 profile（判断是否完成过 onboarding）
-            profile_result = supabase.table('user_profiles').select('*').eq('user_id', user['id']).execute()
-            if not profile_result.data or len(profile_result.data) == 0:
+            # Check if user has completed onboarding
+            # Check both column and metadata fallback
+            onboarding_completed = user.get('onboarding_completed', False)
+            if not onboarding_completed:
+                # Fallback: check metadata if column doesn't exist or is False
+                metadata = user.get('metadata', {})
+                if isinstance(metadata, dict):
+                    onboarding_completed = metadata.get('onboarding_completed', False)
+            
+            if not onboarding_completed:
                 is_new_user = True
         else:
             # 创建新用户
+            # Don't include onboarding_completed if column doesn't exist - use metadata instead
             new_user = {
                 'email': email,
                 'name': name,
                 'picture': picture,
                 'auth_provider': 'google',
+                'metadata': {'onboarding_completed': False},  # Store in metadata as fallback
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
-            user_result = supabase.table('users').insert(new_user).execute()
+            # Try to insert with onboarding_completed column, fallback if it doesn't exist
+            try:
+                new_user['onboarding_completed'] = False
+                user_result = supabase.table('users').insert(new_user).execute()
+            except Exception as e:
+                # If column doesn't exist, remove it and try again
+                error_str = str(e).lower()
+                if 'onboarding_completed' in error_str or 'pgrst204' in error_str:
+                    new_user.pop('onboarding_completed', None)
+                    user_result = supabase.table('users').insert(new_user).execute()
+                else:
+                    raise
             user = user_result.data[0]
             is_new_user = True
         
@@ -181,6 +201,15 @@ async def login(request: LoginRequest):
         # TODO: 验证密码 (需要实现密码哈希验证)
         # For now, we'll just check if user exists
         
+        # Check if user has completed onboarding
+        # Check both column and metadata fallback
+        onboarding_completed = user.get('onboarding_completed', False)
+        if not onboarding_completed:
+            # Fallback: check metadata if column doesn't exist or is False
+            metadata = user.get('metadata', {})
+            if isinstance(metadata, dict):
+                onboarding_completed = metadata.get('onboarding_completed', False)
+        
         # 生成 JWT token
         jwt_token = create_jwt_token(user['id'], user['email'])
         
@@ -190,7 +219,8 @@ async def login(request: LoginRequest):
                 'id': user['id'],
                 'email': user['email'],
                 'name': user.get('name'),
-                'picture': user.get('picture')
+                'picture': user.get('picture'),
+                'onboarding_completed': onboarding_completed
             }
         )
         
@@ -214,15 +244,27 @@ async def signup(request: SignupRequest):
         
         # 创建新用户
         # TODO: 实现密码哈希
+        # Don't include onboarding_completed if column doesn't exist - use metadata instead
         new_user = {
             'email': request.email,
             'name': request.name,
             'auth_provider': 'email',
+            'metadata': {'onboarding_completed': False},  # Store in metadata as fallback
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
-        
-        user_result = supabase.table('users').insert(new_user).execute()
+        # Try to insert with onboarding_completed column, fallback if it doesn't exist
+        try:
+            new_user['onboarding_completed'] = False
+            user_result = supabase.table('users').insert(new_user).execute()
+        except Exception as e:
+            # If column doesn't exist, remove it and try again
+            error_str = str(e).lower()
+            if 'onboarding_completed' in error_str or 'pgrst204' in error_str:
+                new_user.pop('onboarding_completed', None)
+                user_result = supabase.table('users').insert(new_user).execute()
+            else:
+                raise
         user = user_result.data[0]
         
         # 生成 JWT token
@@ -261,11 +303,22 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=404, detail="User not found")
     
     user = user_result.data[0]
+    
+    # Check if user has completed onboarding
+    # Check both column and metadata fallback
+    onboarding_completed = user.get('onboarding_completed', False)
+    if not onboarding_completed:
+        # Fallback: check metadata if column doesn't exist or is False
+        metadata = user.get('metadata', {})
+        if isinstance(metadata, dict):
+            onboarding_completed = metadata.get('onboarding_completed', False)
+    
     return {
         'id': user['id'],
         'email': user['email'],
         'name': user.get('name'),
-        'picture': user.get('picture')
+        'picture': user.get('picture'),
+        'onboarding_completed': onboarding_completed
     }
 
 @router.post("/logout")
@@ -275,7 +328,7 @@ async def logout():
 
 @router.post("/user/profile")
 async def save_user_profile(profile_data: dict, request: Request):
-    """保存用户详细信息（onboarding 数据）"""
+    """保存用户 onboarding 数据（Logistical Constraints + Motivation & Context）"""
     # 从请求头获取 token
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
@@ -293,41 +346,111 @@ async def save_user_profile(profile_data: dict, request: Request):
         # 检查是否已有 profile
         existing_profile = supabase.table('user_profiles').select('*').eq('user_id', user_id).execute()
         
+        # Map transition goal to a readable format
+        transition_goal_map = {
+            'quick': 'Get back to work quickly (6 months)',
+            'earnings': 'Higher long-term earnings',
+            'stable': 'Career change to a stable industry'
+        }
+        transition_goal = profile_data.get('transitionGoal', '')
+        career_goals_text = transition_goal_map.get(transition_goal, transition_goal)
+        
+        # Build profile payload with onboarding data
+        # Keep existing skills/tools/certifications if profile exists
+        existing_skills = []
+        existing_tools = []
+        existing_certifications = []
+        if existing_profile.data and len(existing_profile.data) > 0:
+            existing_profile_data = existing_profile.data[0]
+            existing_skills = existing_profile_data.get('skills', []) or []
+            existing_tools = existing_profile_data.get('tools', []) or []
+            existing_certifications = existing_profile_data.get('certifications', []) or []
+        
         profile_payload = {
             'user_id': user_id,
-            'skills': profile_data.get('skills', []),
-            'tools': [],  # 可以从 skills 中提取
-            'certifications': profile_data.get('certifications', []),
-            'work_experience': profile_data.get('workExperience', ''),
-            'career_goals': profile_data.get('careerGoals', ''),
+            'skills': existing_skills,  # Preserve existing skills, will be updated by assessment
+            'tools': existing_tools,  # Preserve existing tools
+            'certifications': existing_certifications,  # Preserve existing certifications
+            'work_experience': '',  # Will be populated by assessment
+            'career_goals': career_goals_text,  # Store transition goal
             'updated_at': datetime.utcnow().isoformat()
         }
         
-        # 添加额外的元数据
+        # Store all onboarding data in users.metadata
         metadata = {
-            'current_role': profile_data.get('currentRole'),
-            'years_of_experience': profile_data.get('yearsOfExperience'),
-            'industry': profile_data.get('industry'),
-            'location': profile_data.get('location'),
-            'looking_for': profile_data.get('lookingFor', [])
+            # Screen 1: Logistical Constraints
+            'current_zip_code': profile_data.get('currentZipCode'),
+            'travel_constraint': profile_data.get('travelConstraint'),
+            'budget_constraint': profile_data.get('budgetConstraint'),
+            'scheduling': profile_data.get('scheduling'),
+            'weekly_hours_constraint': profile_data.get('weeklyHoursConstraint'),
+            
+            # Screen 2: Motivation & Context
+            'transition_goal': transition_goal,
+            'transition_goal_text': career_goals_text,
+            'target_sector': profile_data.get('targetSector'),
+            'age': profile_data.get('age'),  # Optional
+            'veteran_status': profile_data.get('veteranStatus'),  # Optional
+            
+            # Timestamps
+            'onboarding_completed_at': datetime.utcnow().isoformat()
         }
         
+        # Update or create user_profiles - this must succeed
+        profile_result = None
         if existing_profile.data and len(existing_profile.data) > 0:
-            # 更新现有 profile
-            result = supabase.table('user_profiles').update(profile_payload).eq('user_id', user_id).execute()
+            # Update existing profile - update career_goals and preserve existing data
+            profile_result = supabase.table('user_profiles').update(profile_payload).eq('user_id', user_id).execute()
+            if not profile_result.data:
+                raise Exception("Update returned no data - update may have failed")
         else:
-            # 创建新 profile
+            # Create new profile
             profile_payload['created_at'] = datetime.utcnow().isoformat()
-            result = supabase.table('user_profiles').insert(profile_payload).execute()
+            profile_result = supabase.table('user_profiles').insert(profile_payload).execute()
+            if not profile_result.data:
+                raise Exception("Insert returned no data - insert may have failed")
         
-        # 同时保存元数据到用户表
+        # Store onboarding completion status in metadata (always works)
+        metadata['onboarding_completed'] = True
+        
+        # If user already has metadata, merge it (preserve existing data)
+        existing_user = supabase.table('users').select('metadata').eq('id', user_id).execute()
+        if existing_user.data and len(existing_user.data) > 0:
+            existing_metadata = existing_user.data[0].get('metadata', {})
+            if isinstance(existing_metadata, dict):
+                # Merge with existing metadata (new onboarding data takes precedence)
+                metadata = {**existing_metadata, **metadata}
+        
+        # Save metadata to user table
         user_update = {
             'metadata': metadata,
             'updated_at': datetime.utcnow().isoformat()
         }
-        supabase.table('users').update(user_update).eq('id', user_id).execute()
         
-        return {"message": "Profile saved successfully", "profile": result.data}
+        # Try to update onboarding_completed columns if they exist
+        # If they don't exist, the status is still saved in metadata
+        try:
+            supabase.table('users').update({
+                **user_update,
+                'onboarding_completed': True,
+                'onboarding_completed_at': datetime.utcnow().isoformat()
+            }).eq('id', user_id).execute()
+        except Exception as e:
+            # If onboarding_completed column doesn't exist, update without it
+            # The status is already stored in metadata above
+            error_str = str(e).lower()
+            if 'onboarding_completed' in error_str or 'pgrst204' in error_str or 'schema cache' in error_str:
+                # Fallback: just update metadata (columns will need to be added via migration)
+                supabase.table('users').update(user_update).eq('id', user_id).execute()
+            else:
+                raise
+        
+        return {
+            "message": "Onboarding completed successfully",
+            "profile": profile_result.data if profile_result else None,
+            "user_profile_updated": True,
+            "onboarding_completed": True
+        }
         
     except Exception as e:
         print(f"Error saving profile: {str(e)}")

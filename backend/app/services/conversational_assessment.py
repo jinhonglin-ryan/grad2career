@@ -167,7 +167,7 @@ class ConversationalAssessmentService:
             client = self._get_client()
             
             # Use the models.generate_content method - all arguments are keyword-only
-            # Use gemini-2.0-flash-exp or fallback to gemini-1.5-flash
+            # Use gemini-2.0-flash-exp or fallback to gemini-2.5-flash
             model_name = "gemini-2.0-flash-exp"
             try:
                 response = client.models.generate_content(
@@ -181,16 +181,29 @@ class ConversationalAssessmentService:
                 )
             except Exception as e:
                 # Try fallback model if the experimental one doesn't work
-                logger.warning(f"Failed with {model_name}, trying fallback: {e}")
-                response = client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        temperature=0.7,
-                        top_p=0.95,
-                        max_output_tokens=2048,
+                logger.warning(f"Failed with {model_name}, trying fallback gemini-2.5-flash: {e}")
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            temperature=0.7,
+                            top_p=0.95,
+                            max_output_tokens=2048,
+                        )
                     )
-                )
+                except Exception as e2:
+                    # Final fallback: try gemini-1.5-pro if 2.5-flash doesn't work
+                    logger.warning(f"Failed with gemini-2.5-flash, trying gemini-1.5-pro: {e2}")
+                    response = client.models.generate_content(
+                        model="gemini-1.5-pro",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            temperature=0.7,
+                            top_p=0.95,
+                            max_output_tokens=2048,
+                        )
+                    )
             
             # Extract text from response
             assistant_response = ""
@@ -226,6 +239,9 @@ class ConversationalAssessmentService:
                     conversation_history,
                     user_id
                 )
+                # Clean the response to remove JSON schema that was extracted
+                # Users should only see the conversational text, not the technical JSON
+                assistant_response = self._clean_response_message(assistant_response)
             
             return {
                 "response": assistant_response,
@@ -238,6 +254,54 @@ class ConversationalAssessmentService:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
             raise
+    
+    def _clean_response_message(self, message: str) -> str:
+        """
+        Remove JSON schema from response message so users only see conversational text.
+        """
+        cleaned = message
+        
+        # Remove JSON code blocks
+        if "```json" in cleaned:
+            json_start = cleaned.find("```json")
+            json_end = cleaned.find("```", json_start + 7)
+            if json_end > json_start:
+                # Keep text before JSON block
+                before_json = cleaned[:json_start].strip()
+                # Keep text after JSON block if any
+                after_json = cleaned[json_end + 3:].strip()
+                cleaned = before_json + ("\n\n" + after_json if after_json else "")
+        elif "```" in cleaned:
+            # Handle plain code blocks
+            code_start = cleaned.find("```")
+            code_end = cleaned.find("```", code_start + 3)
+            if code_end > code_start:
+                before_code = cleaned[:code_start].strip()
+                after_code = cleaned[code_end + 3:].strip()
+                cleaned = before_code + ("\n\n" + after_code if after_code else "")
+        
+        # Remove standalone JSON objects that look like schemas
+        if '"user_id"' in cleaned or '"extracted_skills"' in cleaned:
+            # Try to find and remove JSON object
+            json_obj_start = cleaned.find("{")
+            json_obj_end = cleaned.rfind("}")
+            if json_obj_start != -1 and json_obj_end != -1 and json_obj_end > json_obj_start:
+                # Check if this looks like the schema by looking for key fields
+                json_section = cleaned[json_obj_start:json_obj_end + 1]
+                if '"user_id"' in json_section and '"extracted_skills"' in json_section:
+                    # Remove the JSON object, keep text before and after
+                    before_json = cleaned[:json_obj_start].strip()
+                    after_json = cleaned[json_obj_end + 1:].strip()
+                    cleaned = before_json + ("\n\n" + after_json if after_json else "")
+        
+        # Clean up any trailing empty lines
+        cleaned = cleaned.strip()
+        
+        # If cleaning removed everything, return a friendly completion message
+        if not cleaned or len(cleaned) < 10:
+            return "Thank you for completing the assessment! I've gathered all the information I need to create your skill profile."
+        
+        return cleaned
     
     def _extract_skill_profile(
         self,
