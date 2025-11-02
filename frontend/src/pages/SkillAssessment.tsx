@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft } from 'lucide-react';
+import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import styles from './SkillAssessment.module.css';
 
 interface Message {
@@ -31,7 +33,6 @@ const TURN_LABELS_FULL = {
   3: 'Electrical & Diagnostics',
   4: 'Safety, Leadership, & Compliance'
 };
-
 const SkillAssessment = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -40,8 +41,8 @@ const SkillAssessment = () => {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [currentTurn, setCurrentTurn] = useState<number>(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [showValidation, setShowValidation] = useState(false);
-  const [assessmentCompleted, setAssessmentCompleted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -114,6 +115,7 @@ const SkillAssessment = () => {
         setSessionId(response.data.session_id);
       } catch (error) {
         console.error('Error starting assessment:', error);
+        toast.error('Failed to start assessment. Please refresh the page and try again.');
         const errorMessage: Message = {
           role: 'assistant',
           content: 'Sorry, I encountered an error starting the assessment. Please refresh the page and try again.',
@@ -215,14 +217,22 @@ const SkillAssessment = () => {
         setSkillProfile(response.data.skill_profile);
       }
 
-      // If assessment is complete, show validation (don't set completed yet - wait for user confirmation)
+      // If assessment is complete, update skill profile (will show action buttons)
       if (response.data.is_complete && response.data.skill_profile) {
         setSkillProfile(response.data.skill_profile);
-        setShowValidation(true);
-        // Don't set assessmentCompleted yet - wait for user to confirm
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
+      
+      // Show appropriate error message based on error type
+      if (error.code === 'ECONNABORTED') {
+        toast.error('Request timeout. Please check your connection.');
+      } else if (error.response?.status === 429) {
+        toast.warning('Too many requests. Please wait a moment and try again.');
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to send message. Please try again.');
+      }
+      
       const errorMessage: Message = {
         role: 'assistant',
         content: error.response?.data?.detail || 'Sorry, I encountered an error. Please try again.',
@@ -241,28 +251,36 @@ const SkillAssessment = () => {
     }
   };
 
-  const handleConfirmProfile = () => {
-    // Show completion UI instead of navigating immediately
-    setAssessmentCompleted(true);
-    setShowValidation(false);
-  };
+  const handleSaveAndFindCareers = async () => {
+    if (!skillProfile || !user?.id) {
+      toast.error('No skill profile to save');
+      return;
+    }
 
-  const handleEditProfile = () => {
-    setShowValidation(false);
-    setAssessmentCompleted(false);
-    // Allow user to continue conversation if needed
-  };
-
-  const handleGoToCareers = () => {
-    // Navigate to career matching with skill profile
-    navigate('/careers', { state: { skillProfile } });
-  };
-
-  const handleComplete = () => {
-    if (skillProfile) {
-      navigate('/careers', { state: { skillProfile } });
-    } else {
-      navigate('/careers');
+    setIsSaving(true);
+    try {
+      // Save the skill profile to backend
+      await api.post('/skills/save', {
+        user_id: user.id,
+        skill_profile: skillProfile
+      });
+      
+      toast.success('Skill profile saved successfully!');
+      
+      // Navigate to career matching
+      setTimeout(() => {
+        navigate('/careers', { state: { skillProfile } });
+      }, 500);
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to save profile. But you can still explore careers.');
+      
+      // Even if save fails, allow navigation to careers
+      setTimeout(() => {
+        navigate('/careers', { state: { skillProfile } });
+      }, 1000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -272,7 +290,7 @@ const SkillAssessment = () => {
     setMessages([]);
     setCurrentTurn(1);
     setSessionId(null);
-    setShowValidation(false);
+    setExpandedSkills(new Set());
     
     // Start new assessment
     try {
@@ -292,6 +310,7 @@ const SkillAssessment = () => {
       setSessionId(response.data.session_id);
     } catch (error) {
       console.error('Error starting assessment:', error);
+      toast.error('Failed to restart assessment. Please try again.');
       const errorMessage: Message = {
         role: 'assistant',
         content: 'Sorry, I encountered an error starting the assessment. Please try again.',
@@ -302,11 +321,35 @@ const SkillAssessment = () => {
       setInitializing(false);
     }
   };
+  // Toggle skill technical details
+  const toggleSkillDetails = (index: number) => {
+    setExpandedSkills(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
 
   const isComplete = currentTurn >= 4 && skillProfile !== null;
 
   return (
     <div className={styles.container}>
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
           <div className={styles.logo} onClick={() => navigate('/')}>
@@ -338,18 +381,34 @@ const SkillAssessment = () => {
                 ? 'Assessment complete! Review your skill profile below.'
                 : `Turn ${currentTurn}/4: ${TURN_LABELS_FULL[currentTurn as keyof typeof TURN_LABELS_FULL]}`}
             </p>
+            
+            {/* Progress bar */}
+            {!isComplete && (
+              <div className={styles.progressBarContainer}>
+                <div className={styles.progressBarBackground}>
+                  <div 
+                    className={styles.progressBarFill} 
+                    style={{ width: `${(currentTurn / 4) * 100}%` }}
+                  >
+                    <span className={styles.progressBarText}>{currentTurn}/4 Complete</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className={styles.messagesContainer}>
             {initializing ? (
-              <div className={`${styles.message} ${styles.assistantMessage}`}>
-                <div className={styles.messageContent}>
-                  <div className={styles.typing}>
-                    <span></span>
-                    <span></span>
-                    <span></span>
+              <div className={styles.loadingContainer}>
+                <div className={styles.loadingSkeleton}>
+                  <div className={styles.skeletonAvatar}></div>
+                  <div className={styles.skeletonContent}>
+                    <div className={styles.skeletonLine} style={{ width: '80%' }}></div>
+                    <div className={styles.skeletonLine} style={{ width: '60%' }}></div>
+                    <div className={styles.skeletonLine} style={{ width: '70%' }}></div>
                   </div>
                 </div>
+                <p className={styles.loadingText}>Initializing assessment...</p>
               </div>
             ) : (
               <>
@@ -392,11 +451,13 @@ const SkillAssessment = () => {
                 className={styles.input}
                 rows={3}
                 disabled={loading || initializing}
+                aria-label="Message input"
               />
               <button
                 onClick={handleSend}
                 className={styles.sendButton}
                 disabled={!input.trim() || loading || initializing}
+                aria-label="Send message"
               >
                 <Send size={20} />
               </button>
@@ -408,10 +469,9 @@ const SkillAssessment = () => {
           <div className={styles.sidebar}>
           <div className={styles.sidebarHeader}>
             <h2>Your Skills</h2>
-            {skillProfile && skillProfile.extracted_skills.length > 0 && !showValidation && (
-              <button onClick={handleRedoAssessment} className={styles.redoButton}>
+            {skillProfile && skillProfile.extracted_skills.length > 0 && (
+              <button onClick={handleRedoAssessment} className={styles.redoButton} title="Start a new assessment">
                 <RefreshCw size={16} />
-                Redo Assessment
               </button>
             )}
           </div>
@@ -430,80 +490,75 @@ const SkillAssessment = () => {
               <p className={styles.jobTitle}>{skillProfile?.raw_job_title || 'Not specified'}</p>
             </div>
 
-            {skillProfile && skillProfile.extracted_skills.length > 0 && (
-              <div className={styles.skillSection}>
-                <h3>Extracted Skills</h3>
-                {skillProfile.extracted_skills.map((skill, index) => (
+            <div className={styles.skillSection}>
+              <h3>Extracted Skills</h3>
+              {skillProfile.extracted_skills.map((skill, index) => {
+                const isExpanded = expandedSkills.has(index);
+                return (
                   <div key={index} className={styles.skillCard}>
                     <div className={styles.skillCategory}>{skill.category}</div>
                     <div className={styles.skillPhrase}>"{skill.user_phrase}"</div>
-                    <div className={styles.onetCodes}>
-                      <strong>O*NET Codes:</strong>
-                      <ul>
-                        {skill.onet_task_codes.map((code, codeIndex) => (
-                          <li key={codeIndex} className={styles.onetCode}>
-                            {code}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    
+                    {/* Toggle technical details button */}
+                    <button 
+                      onClick={() => toggleSkillDetails(index)}
+                      className={styles.toggleDetailsButton}
+                    >
+                      {isExpanded ? (
+                        <>
+                          <ChevronUp size={16} />
+                          <span>Hide Technical Details</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={16} />
+                          <span>Show Technical Details ({skill.onet_task_codes.length} O*NET codes)</span>
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Collapsible O*NET codes */}
+                    {isExpanded && (
+                      <div className={styles.onetCodes}>
+                        <strong>O*NET Task Codes:</strong>
+                        <ul>
+                          {skill.onet_task_codes.map((code, codeIndex) => (
+                            <li key={codeIndex} className={styles.onetCode}>
+                              {code}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className={styles.onetExplanation}>
+                          These are standardized occupation codes used to map skills to career pathways.
+                        </p>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
 
-            {showValidation && !assessmentCompleted && (
-              <div className={styles.validationSection}>
-                <div className={styles.validationHeader}>
-                  <CheckCircle className={styles.validationIcon} />
-                  <h3>Review Your Profile</h3>
-                </div>
-                <p className={styles.validationText}>
-                  Please review your skill profile above. This will be used to match you with
-                  career opportunities and identify learning resources.
-                </p>
-                <div className={styles.validationActions}>
-                  <button onClick={handleConfirmProfile} className={styles.confirmButton}>
-                    <CheckCircle size={18} />
-                    Confirm & Continue
-                  </button>
-                  <button onClick={handleEditProfile} className={styles.editButton}>
-                    Edit Profile
-                  </button>
-                </div>
+            {/* Action Buttons - show when not actively in assessment */}
+            {(!sessionId || isComplete) && (
+              <div className={styles.actionSection}>
+                <button 
+                  onClick={handleSaveAndFindCareers} 
+                  className={styles.primaryActionButton}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw size={18} className={styles.spinning} />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      {isComplete ? <CheckCircle size={18} /> : <Briefcase size={18} />}
+                      {isComplete ? 'Save & Find Careers' : 'Find Matching Careers'}
+                    </>
+                  )}
+                </button>
               </div>
-            )}
-
-            {assessmentCompleted && (
-              <div className={styles.completionSection}>
-                <div className={styles.completionHeader}>
-                  <CheckCircle className={styles.completionIcon} />
-                  <h3>Assessment Complete! 🎉</h3>
-                </div>
-                <p className={styles.completionText}>
-                  Your skill profile has been saved successfully. You can now explore career opportunities
-                  that match your skills or update your profile anytime.
-                </p>
-                <div className={styles.completionActions}>
-                  <button onClick={handleGoToCareers} className={styles.careerButton}>
-                    <Briefcase size={18} />
-                    Explore Careers
-                  </button>
-                  <button onClick={() => navigate('/dashboard')} className={styles.dashboardButton}>
-                    Go to Dashboard
-                  </button>
-                  <button onClick={handleRedoAssessment} className={styles.redoButtonSmall}>
-                    <RefreshCw size={16} />
-                    Redo Assessment
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {skillProfile && !showValidation && (
-              <button onClick={handleComplete} className={styles.completeButton}>
-                Find Matching Careers
-              </button>
             )}
             </>
           ) : (

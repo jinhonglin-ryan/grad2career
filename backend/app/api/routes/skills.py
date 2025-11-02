@@ -115,32 +115,18 @@ def save_skill_profile_to_database(
             if 'tool' in user_phrase.lower() or 'Tool' in category or any('Tool' in code for code in onet_codes):
                 tools_list.append(user_phrase)
         
-        # Build profile payload
+        # Build profile payload (without metadata to avoid schema issues)
         profile_data = {
             'user_id': user_id,
             'skills': skills_list,  # Simple list for backward compatibility
             'tools': tools_list,
             'certifications': certifications_list,
             'work_experience': skill_profile.get('raw_experience_summary', ''),
-            'updated_at': datetime.utcnow().isoformat(),
-            # Store detailed skill data with O*NET codes in a metadata field
-            # Note: This requires adding a metadata JSONB column to user_profiles if it doesn't exist
+            'updated_at': datetime.utcnow().isoformat()
         }
         
-        # Try to save detailed skills in a metadata field if available
-        # Check if metadata column exists by trying to use it
-        try:
-            # Store full skill profile data including O*NET codes
-            profile_data['metadata'] = {
-                'assessment_source': 'conversational',
-                'raw_job_title': skill_profile.get('raw_job_title', ''),
-                'extraction_timestamp': skill_profile.get('extraction_timestamp', ''),
-                'detailed_skills': detailed_skills,
-                'onet_codes': [code for skill in detailed_skills for code in skill.get('onet_task_codes', [])]
-            }
-        except Exception:
-            # If metadata column doesn't exist, continue without it
-            pass
+        # Note: Detailed skills with O*NET codes are already saved in assessment_sessions table
+        # We don't need to duplicate them in user_profiles.metadata
         
         # Check if profile exists
         existing_profile = supabase.table('user_profiles').select('user_id').eq('user_id', user_id).execute()
@@ -329,6 +315,66 @@ async def get_turn_prompt(turn: int):
             4: "Safety, Leadership, & Compliance"
         }.get(turn)
     }
+
+
+@router.post("/save")
+async def save_skill_profile(request: Dict[str, Any]):
+    """
+    Manually save or update a skill profile.
+    This is called when user explicitly wants to save their assessment.
+    """
+    try:
+        user_id = request.get('user_id')
+        skill_profile = request.get('skill_profile')
+        
+        if not user_id or not skill_profile:
+            raise HTTPException(status_code=400, detail="user_id and skill_profile are required")
+        
+        supabase = get_supabase()
+        
+        # Extract skills from profile
+        skills_list = []
+        tools_list = []
+        
+        for skill_obj in skill_profile.get('extracted_skills', []):
+            user_phrase = skill_obj.get('user_phrase', '')
+            if user_phrase:
+                skills_list.append(user_phrase)
+                # Extract tools if category indicates it
+                if 'tool' in user_phrase.lower():
+                    tools_list.append(user_phrase)
+        
+        # Build profile data (without metadata to avoid schema issues)
+        profile_data = {
+            'user_id': user_id,
+            'skills': skills_list,
+            'tools': tools_list,
+            'certifications': [],
+            'work_experience': skill_profile.get('raw_experience_summary', ''),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Check if profile exists
+        existing_profile = supabase.table('user_profiles').select('user_id').eq('user_id', user_id).execute()
+        
+        if existing_profile.data and len(existing_profile.data) > 0:
+            # Update existing profile
+            supabase.table('user_profiles').update(profile_data).eq('user_id', user_id).execute()
+        else:
+            # Create new profile
+            profile_data['created_at'] = datetime.utcnow().isoformat()
+            supabase.table('user_profiles').insert(profile_data).execute()
+        
+        return {
+            "success": True,
+            "message": "Skill profile saved successfully",
+            "user_id": user_id
+        }
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error saving skill profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save skill profile: {str(e)}")
 
 
 @router.get("/profile/{user_id}")
