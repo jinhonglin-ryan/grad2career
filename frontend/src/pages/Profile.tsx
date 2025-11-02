@@ -49,6 +49,12 @@ const Profile = () => {
     name?: string;
     career_goals?: string;
     work_experience?: string;
+    current_zip_code?: string;
+    travel_constraint?: string;
+    budget_constraint?: string;
+    scheduling?: string;
+    weekly_hours_constraint?: string;
+    target_sector?: string;
   }>({});
 
   useEffect(() => {
@@ -65,6 +71,12 @@ const Profile = () => {
           name: response.data.user.name || '',
           career_goals: response.data.profile?.career_goals || '',
           work_experience: response.data.profile?.work_experience || '',
+          current_zip_code: response.data.metadata?.current_zip_code || '',
+          travel_constraint: response.data.metadata?.travel_constraint || '',
+          budget_constraint: response.data.metadata?.budget_constraint || '',
+          scheduling: response.data.metadata?.scheduling || '',
+          weekly_hours_constraint: response.data.metadata?.weekly_hours_constraint || '',
+          target_sector: response.data.metadata?.target_sector || '',
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -87,9 +99,25 @@ const Profile = () => {
         name: response.data.user.name || '',
         career_goals: response.data.profile?.career_goals || '',
         work_experience: response.data.profile?.work_experience || '',
+        current_zip_code: response.data.metadata?.current_zip_code || '',
+        travel_constraint: response.data.metadata?.travel_constraint || '',
+        budget_constraint: response.data.metadata?.budget_constraint || '',
+        scheduling: response.data.metadata?.scheduling || '',
+        weekly_hours_constraint: response.data.metadata?.weekly_hours_constraint || '',
+        target_sector: response.data.metadata?.target_sector || '',
       });
       setEditing(false);
-      alert('Profile updated successfully!');
+      
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.className = styles.notification;
+      notification.textContent = '✓ Profile updated successfully!';
+      document.body.appendChild(notification);
+      setTimeout(() => notification.classList.add(styles.notificationShow), 10);
+      setTimeout(() => {
+        notification.classList.remove(styles.notificationShow);
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
     } catch (error: any) {
       console.error('Error updating profile:', error);
       alert(error.response?.data?.detail || 'Failed to update profile. Please try again.');
@@ -104,6 +132,12 @@ const Profile = () => {
         name: fullProfile.user.name || '',
         career_goals: fullProfile.profile?.career_goals || '',
         work_experience: fullProfile.profile?.work_experience || '',
+        current_zip_code: fullProfile.metadata?.current_zip_code || '',
+        travel_constraint: fullProfile.metadata?.travel_constraint || '',
+        budget_constraint: fullProfile.metadata?.budget_constraint || '',
+        scheduling: fullProfile.metadata?.scheduling || '',
+        weekly_hours_constraint: fullProfile.metadata?.weekly_hours_constraint || '',
+        target_sector: fullProfile.metadata?.target_sector || '',
       });
     }
     setEditing(false);
@@ -325,12 +359,20 @@ const Profile = () => {
                 </div>
               )}
             </div>
-            {metadata.target_sector && (
-              <div className={styles.fieldGroup}>
-                <label className={styles.label}>Target Sector</label>
-                <div className={styles.value}>{metadata.target_sector}</div>
-              </div>
-            )}
+            <div className={styles.fieldGroup}>
+              <label className={styles.label}>Target Sector</label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={editData.target_sector || ''}
+                  onChange={(e) => setEditData({ ...editData, target_sector: e.target.value })}
+                  placeholder="e.g., Technology, Healthcare, Finance"
+                  className={styles.input}
+                />
+              ) : (
+                <div className={styles.value}>{metadata.target_sector || 'Not specified'}</div>
+              )}
+            </div>
           </div>
 
           {/* Skills & Tools */}
@@ -382,48 +424,117 @@ const Profile = () => {
               <MapPin size={20} />
               <h2>Logistical Constraints</h2>
             </div>
-            <div className={styles.infoGrid}>
-              {metadata.current_zip_code && (
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Zip Code</span>
-                  <span className={styles.infoValue}>{metadata.current_zip_code}</span>
+            {editing ? (
+              <div className={styles.editGrid}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Zip Code</label>
+                  <input
+                    type="text"
+                    value={editData.current_zip_code || ''}
+                    onChange={(e) => setEditData({ ...editData, current_zip_code: e.target.value })}
+                    placeholder="Enter zip code"
+                    className={styles.input}
+                  />
                 </div>
-              )}
-              {metadata.travel_constraint && (
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>
-                    <Clock size={16} />
-                    Travel Constraint
-                  </span>
-                  <span className={styles.infoValue}>
-                    {getTravelConstraintLabel(metadata.travel_constraint)}
-                  </span>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Travel Constraint</label>
+                  <select
+                    value={editData.travel_constraint || ''}
+                    onChange={(e) => setEditData({ ...editData, travel_constraint: e.target.value })}
+                    className={styles.input}
+                  >
+                    <option value="">Select travel constraint</option>
+                    <option value="15min">Up to 15 Minutes</option>
+                    <option value="30min">Up to 30 Minutes</option>
+                    <option value="45min">Up to 45 Minutes</option>
+                    <option value="remote">Remote or Flexible Learning</option>
+                  </select>
                 </div>
-              )}
-              {metadata.budget_constraint && (
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>
-                    <DollarSign size={16} />
-                    Budget Constraint
-                  </span>
-                  <span className={styles.infoValue}>
-                    {getBudgetConstraintLabel(metadata.budget_constraint)}
-                  </span>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Budget Constraint</label>
+                  <select
+                    value={editData.budget_constraint || ''}
+                    onChange={(e) => setEditData({ ...editData, budget_constraint: e.target.value })}
+                    className={styles.input}
+                  >
+                    <option value="">Select budget constraint</option>
+                    <option value="free">Free or Grant-Eligible</option>
+                    <option value="1000">Up to $1,000</option>
+                    <option value="flexible">Flexible Budget</option>
+                  </select>
                 </div>
-              )}
-              {metadata.scheduling && (
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Scheduling</span>
-                  <span className={styles.infoValue}>{metadata.scheduling}</span>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Scheduling</label>
+                  <input
+                    type="text"
+                    value={editData.scheduling || ''}
+                    onChange={(e) => setEditData({ ...editData, scheduling: e.target.value })}
+                    placeholder="e.g., Weekdays, Evenings, etc."
+                    className={styles.input}
+                  />
                 </div>
-              )}
-              {metadata.weekly_hours_constraint && (
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Weekly Hours</span>
-                  <span className={styles.infoValue}>{metadata.weekly_hours_constraint}</span>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Weekly Hours</label>
+                  <input
+                    type="text"
+                    value={editData.weekly_hours_constraint || ''}
+                    onChange={(e) => setEditData({ ...editData, weekly_hours_constraint: e.target.value })}
+                    placeholder="e.g., 10-20 hours"
+                    className={styles.input}
+                  />
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className={styles.infoGrid}>
+                {metadata.current_zip_code && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Zip Code</span>
+                    <span className={styles.infoValue}>{metadata.current_zip_code}</span>
+                  </div>
+                )}
+                {metadata.travel_constraint && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>
+                      <Clock size={16} />
+                      Travel Constraint
+                    </span>
+                    <span className={styles.infoValue}>
+                      {getTravelConstraintLabel(metadata.travel_constraint)}
+                    </span>
+                  </div>
+                )}
+                {metadata.budget_constraint && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>
+                      <DollarSign size={16} />
+                      Budget Constraint
+                    </span>
+                    <span className={styles.infoValue}>
+                      {getBudgetConstraintLabel(metadata.budget_constraint)}
+                    </span>
+                  </div>
+                )}
+                {metadata.scheduling && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Scheduling</span>
+                    <span className={styles.infoValue}>{metadata.scheduling}</span>
+                  </div>
+                )}
+                {metadata.weekly_hours_constraint && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Weekly Hours</span>
+                    <span className={styles.infoValue}>{metadata.weekly_hours_constraint}</span>
+                  </div>
+                )}
+                {!metadata.current_zip_code && !metadata.travel_constraint && 
+                 !metadata.budget_constraint && !metadata.scheduling && 
+                 !metadata.weekly_hours_constraint && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoValue}>No constraints set</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Additional Information */}
