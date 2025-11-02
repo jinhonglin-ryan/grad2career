@@ -71,18 +71,22 @@
 }
 
 .backButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #f3f4f6;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   border: none;
-  border-radius: 0.5rem;
-  color: #374151;
-  font-weight: 500;
+  border-radius: 0.375rem;
   cursor: pointer;
   transition: all 0.2s;
+  font-weight: 500;
 }
 
 .backButton:hover {
-  background: #e5e7eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
 }
 
 .logoutButton {

@@ -411,17 +411,13 @@ async def update_user_profile(profile_update: dict, request: Request):
         if 'picture' in profile_update:
             user_updates['picture'] = profile_update['picture']
         
-        # 可以更新的 profile 字段
+        # 可以更新的 profile 字段 (only basic fields that exist in all schemas)
         if 'career_goals' in profile_update:
             profile_updates['career_goals'] = profile_update['career_goals']
         if 'work_experience' in profile_update:
             profile_updates['work_experience'] = profile_update['work_experience']
-        if 'skills' in profile_update:
-            profile_updates['skills'] = profile_update['skills']
-        if 'tools' in profile_update:
-            profile_updates['tools'] = profile_update['tools']
-        if 'certifications' in profile_update:
-            profile_updates['certifications'] = profile_update['certifications']
+        # Note: skills, tools, certifications are handled by the assessment flow
+        # and stored in JSONB columns which may not exist in all database versions
         
         # 可以更新的 metadata 字段（onboarding 相关）
         metadata_fields = [
@@ -516,25 +512,17 @@ async def save_user_profile(profile_data: dict, request: Request):
         career_goals_text = transition_goal_map.get(transition_goal, transition_goal)
         
         # Build profile payload with onboarding data
-        # Keep existing skills/tools/certifications if profile exists
-        existing_skills = []
-        existing_tools = []
-        existing_certifications = []
-        if existing_profile.data and len(existing_profile.data) > 0:
-            existing_profile_data = existing_profile.data[0]
-            existing_skills = existing_profile_data.get('skills', []) or []
-            existing_tools = existing_profile_data.get('tools', []) or []
-            existing_certifications = existing_profile_data.get('certifications', []) or []
-        
+        # Only include career_goals and work_experience (basic fields that should exist)
+        # Skills, tools, certifications will be added by the assessment flow
         profile_payload = {
             'user_id': user_id,
-            'skills': existing_skills,  # Preserve existing skills, will be updated by assessment
-            'tools': existing_tools,  # Preserve existing tools
-            'certifications': existing_certifications,  # Preserve existing certifications
-            'work_experience': '',  # Will be populated by assessment
             'career_goals': career_goals_text,  # Store transition goal
             'updated_at': datetime.utcnow().isoformat()
         }
+        
+        # Only set work_experience if profile doesn't exist yet
+        if not existing_profile.data or len(existing_profile.data) == 0:
+            profile_payload['work_experience'] = ''
         
         # Store all onboarding data in users.metadata
         metadata = {
@@ -556,19 +544,24 @@ async def save_user_profile(profile_data: dict, request: Request):
             'onboarding_completed_at': datetime.utcnow().isoformat()
         }
         
-        # Update or create user_profiles - this must succeed
+        # Update or create user_profiles - try to save, but don't fail if table has schema issues
         profile_result = None
-        if existing_profile.data and len(existing_profile.data) > 0:
-            # Update existing profile - update career_goals and preserve existing data
-            profile_result = supabase.table('user_profiles').update(profile_payload).eq('user_id', user_id).execute()
-            if not profile_result.data:
-                raise Exception("Update returned no data - update may have failed")
-        else:
-            # Create new profile
-            profile_payload['created_at'] = datetime.utcnow().isoformat()
-            profile_result = supabase.table('user_profiles').insert(profile_payload).execute()
-            if not profile_result.data:
-                raise Exception("Insert returned no data - insert may have failed")
+        profile_saved = False
+        try:
+            if existing_profile.data and len(existing_profile.data) > 0:
+                # Update existing profile - update career_goals and preserve existing data
+                profile_result = supabase.table('user_profiles').update(profile_payload).eq('user_id', user_id).execute()
+                profile_saved = profile_result.data is not None
+            else:
+                # Create new profile
+                profile_payload['created_at'] = datetime.utcnow().isoformat()
+                profile_result = supabase.table('user_profiles').insert(profile_payload).execute()
+                profile_saved = profile_result.data is not None
+        except Exception as profile_error:
+            # Log error but continue - onboarding data will still be saved in metadata
+            print(f"Warning: Could not save to user_profiles table: {str(profile_error)}")
+            # Don't raise - we'll store everything in metadata instead
+            profile_saved = False
         
         # Store onboarding completion status in metadata (always works)
         metadata['onboarding_completed'] = True
@@ -608,8 +601,9 @@ async def save_user_profile(profile_data: dict, request: Request):
         return {
             "message": "Onboarding completed successfully",
             "profile": profile_result.data if profile_result else None,
-            "user_profile_updated": True,
-            "onboarding_completed": True
+            "user_profile_updated": profile_saved,
+            "onboarding_completed": True,
+            "note": "All onboarding data saved in user metadata" if not profile_saved else None
         }
         
     except Exception as e:

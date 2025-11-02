@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import styles from './SkillAssessment.module.css';
@@ -314,6 +314,10 @@ const SkillAssessment = () => {
             <span className={styles.logoText}>SkillBridge</span>
           </div>
           <div className={styles.navRight}>
+            <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
+              <ArrowLeft size={18} />
+              Back to Dashboard
+            </button>
             <span className={styles.userName}>{user?.name || user?.email}</span>
             <button onClick={logout} className={styles.logoutButton}>
               <LogOut size={18} />

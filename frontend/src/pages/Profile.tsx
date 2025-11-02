@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, User, Mail, Calendar, MapPin, Target, TrendingUp, BookOpen, Edit2, Save, X, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { Briefcase, LogOut, User, Mail, Calendar, MapPin, Target, TrendingUp, BookOpen, Edit2, Save, X, CheckCircle2, Clock, DollarSign, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import styles from './Profile.module.css';
@@ -179,6 +179,7 @@ const Profile = () => {
           </div>
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.backButton}>
+              <ArrowLeft size={18} />
               Back to Dashboard
             </button>
             <button onClick={logout} className={styles.logoutButton}>

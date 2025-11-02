@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, TrendingUp, DollarSign, MapPin, Target } from 'lucide-react';
+import { Briefcase, LogOut, TrendingUp, DollarSign, MapPin, Target, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import styles from './CareerMatch.module.css';
@@ -69,6 +69,10 @@ const CareerMatch = () => {
             <span className={styles.logoText}>SkillBridge</span>
           </div>
           <div className={styles.navRight}>
+            <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
+              <ArrowLeft size={18} />
+              Back to Dashboard
+            </button>
             <span className={styles.userName}>{user?.name || user?.email}</span>
             <button onClick={logout} className={styles.logoutButton}>
               <LogOut size={18} />

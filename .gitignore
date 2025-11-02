@@ -40,6 +40,9 @@ dist/
 dist-ssr/
 *.local
 
+# TypeScript
+*.tsbuildinfo
+
 # IDE / editor settings
 .vscode/
 .idea/

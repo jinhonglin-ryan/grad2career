@@ -111,7 +111,6 @@ pypdf==6.1.3
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 python-multipart==0.0.20
-pywin32==311
 PyYAML==6.0.3
 realtime==2.22.2
 referencing==0.37.0
