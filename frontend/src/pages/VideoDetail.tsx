@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Briefcase, LogOut } from 'lucide-react';
-import { Spin, Alert } from 'antd';
+import { Spin, Alert, Input } from 'antd';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import styles from './LearningPath.module.css';
 
@@ -17,23 +18,21 @@ const VideoDetail = () => {
 
   const [transcript, setTranscript] = useState<TranscriptItem[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<string>('');
 
   useEffect(() => {
     const vid = videoId || video?.videoId;
     if (!vid) {
       setLoading(false);
-      setError('Missing video id');
       return;
     }
-    // Try an unofficial transcript endpoint; fail gracefully
+    // Fetch transcript from backend
     const fetchTranscript = async () => {
       try {
-        const resp = await fetch(`https://youtubetranscript-api.vercel.app/api/transcript/${vid}`);
-        if (!resp.ok) throw new Error('Transcript fetch failed');
-        const data = await resp.json();
-        if (!Array.isArray(data)) throw new Error('Invalid transcript format');
-        setTranscript(data.map((d) => ({ text: d.text, start: d.start, duration: d.duration })));
+        const resp = await api.get(`/youtube/transcript/${vid}`);
+        const data = resp.data;
+        if (!data || !Array.isArray(data.transcript)) throw new Error('Invalid transcript format');
+        setTranscript(data.transcript.map((d: any) => ({ text: d.text, start: d.start, duration: d.duration })));
       } catch (e: any) {
         setTranscript(null);
       } finally {
@@ -41,6 +40,11 @@ const VideoDetail = () => {
       }
     };
     fetchTranscript();
+    // Load notes from localStorage
+    try {
+      const stored = localStorage.getItem(`video_notes_${vid}`);
+      if (stored) setNotes(stored);
+    } catch { /* ignore */ }
   }, [videoId, video]);
 
   const embedSrc = videoId ? `https://www.youtube.com/embed/${videoId}` : (video ? `https://www.youtube.com/embed/${video.videoId}` : '');
@@ -84,19 +88,37 @@ const VideoDetail = () => {
                 />
               </div>
             </div>
-            <div style={{ background: '#fff', borderRadius: '0.75rem', padding: '1rem', border: '1px solid #e5e7eb', maxHeight: 600, overflow: 'auto' }}>
-              <h3 style={{ marginBottom: '0.75rem' }}>Transcript</h3>
-              {loading ? (
-                <Spin />
-              ) : transcript && transcript.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {transcript.map((t, i) => (
-                    <div key={i} style={{ color: '#374151', fontSize: '0.95rem', lineHeight: 1.5 }}>{t.text}</div>
-                  ))}
-                </div>
-              ) : (
-                <Alert type="info" message="Transcript not available for this video." />
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ background: '#fff', borderRadius: '0.75rem', padding: '1rem', border: '1px solid #e5e7eb', maxHeight: 360, overflow: 'auto' }}>
+                <h3 style={{ marginBottom: '0.75rem' }}>Transcript</h3>
+                {loading ? (
+                  <Spin />
+                ) : transcript && transcript.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {transcript.map((t, i) => (
+                      <div key={i} style={{ color: '#374151', fontSize: '0.95rem', lineHeight: 1.5 }}>{t.text}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <Alert type="info" message="Transcript not available for this video." />
+                )}
+              </div>
+              <div style={{ background: '#fff', borderRadius: '0.75rem', padding: '1rem', border: '1px solid #e5e7eb' }}>
+                <h3 style={{ marginBottom: '0.75rem' }}>Notes</h3>
+                <Input.TextArea
+                  value={notes}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNotes(val);
+                    try {
+                      const vid = videoId || video?.videoId;
+                      if (vid) localStorage.setItem(`video_notes_${vid}`, val);
+                    } catch { /* ignore */ }
+                  }}
+                  rows={6}
+                  placeholder="Write your notes here while watching…"
+                />
+              </div>
             </div>
           </div>
         )}

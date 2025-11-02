@@ -25,14 +25,15 @@ type AgentStatus = {
   error?: string;
 };
 
-const MOCK_PLUMBER_SKILLS: string[] = [
-  'Pipefitting & Soldering',
-  'PEX vs Copper Basics',
-  'Reading Plumbing Codes',
-  'Fixture Installation',
-  'Leak Detection & Repair',
-  'Safety & PPE',
-  'Customer Communication',
+const MOCK_SOLAR_SKILLS: string[] = [
+  'PV System Fundamentals',
+  'Electrical Safety & PPE',
+  'Roof Work & Fall Protection (OSHA)',
+  'Racking & Mounting Systems',
+  'Module, Inverter & String Wiring',
+  'NEC Basics for PV (Article 690)',
+  'Site Assessment & Array Layout',
+  'Commissioning & Troubleshooting',
 ];
 
 const LearningPath = () => {
@@ -64,8 +65,8 @@ const LearningPath = () => {
       {
         role: 'bot',
         text:
-          `Great! We'll build a starter plan for becoming a ${career?.title || 'Plumber'}. ` +
-          `We'll focus on basics like ${MOCK_PLUMBER_SKILLS.slice(0, 3).join(', ')}. ` +
+          `Great! We'll build a starter plan for becoming a ${career?.title || 'Solar Panel Installer Technician'}. ` +
+          `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
           `What does your weekly availability look like?`,
       },
     ]);
@@ -119,7 +120,7 @@ const LearningPath = () => {
       try {
         setCreatingPlan(true);
         const resp = await api.post('/agent/ask', {
-          query: `Create a beginner plumbing learning plan with 10 useful YouTube videos and resources. User note: ${trimmed}`,
+          query: `Create a beginner solar panel installer technician learning plan with 10 useful YouTube videos and resources. User note: ${trimmed}`,
           user_id: 'web',
           session_id: 'default',
         });
@@ -281,7 +282,7 @@ const LearningPath = () => {
       <div className={styles.mainContent}>
         <div className={styles.header}>
           <h1>Learning Dashboard</h1>
-          <p>Path to become a {career?.title || 'Plumber'}</p>
+          <p>Path to become a {career?.title || 'Solar Panel Installer Technician'}</p>
         </div>
 
         <div className={styles.summaryCards}>
@@ -311,7 +312,7 @@ const LearningPath = () => {
         <section className={styles.skillsSection}>
           <h2>Required Skills (Mock)</h2>
           <div className={styles.skillTags}>
-            {MOCK_PLUMBER_SKILLS.map((s) => (
+            {MOCK_SOLAR_SKILLS.map((s) => (
               <span key={s} className={styles.skillTag}>{s}</span>
             ))}
           </div>
