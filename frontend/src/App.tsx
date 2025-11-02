@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import SkillAssessment from './pages/SkillAssessment';
 import CareerMatch from './pages/CareerMatch';
 import LearningPath from './pages/LearningPath';
+import VideoDetail from './pages/VideoDetail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingPage from './pages/OnboardingPage';
 import Profile from './pages/Profile';
@@ -25,6 +26,7 @@ function App() {
       <Route path="/assessment" element={<SkillAssessment />} />
       <Route path="/careers" element={<CareerMatch />} />
       <Route path="/learning" element={<LearningPath />} />
+      <Route path="/learning/video/:videoId" element={<VideoDetail />} />
     </Routes>
   );
 }
