@@ -23,17 +23,20 @@ logger.setLevel(logging.INFO)
 
 
 def careeronestop_search_training(
+    occupation: str,
     location: str,
-    program_type: Optional[str] = None,
-    distance: Optional[int] = None,
+    user_id: Optional[str] = None,
     max_results: int = 10
 ) -> Dict[str, Any]:
     """Search CareerOneStop for training programs, certifications, and licenses.
     
+    Based on CareerOneStop Training Finder API:
+    GET /v1/training/{userId}/{occupation}/{location}
+    
     Args:
-        location: City and state (e.g., "New York, NY") or ZIP code
-        program_type: Optional filter for program type
-        distance: Optional maximum distance in miles
+        occupation: Occupation code (O*NET-SOC code) or occupation name/keyword
+        location: ZIP code (5-digit) or city, state format
+        user_id: Optional user ID (if not provided, uses API key as userId)
         max_results: Maximum number of results to return
     
     Returns:
@@ -51,40 +54,53 @@ def careeronestop_search_training(
                            "Register at https://www.careeronestop.org/Developers/WebAPI/registration.aspx"
         }
 
-    # CareerOneStop API endpoint (adjust based on actual API documentation)
-    # Note: The actual endpoint structure may vary - check API docs
-    url = "https://api.careeronestop.org/v1/training"
+    # Use API key as userId if not provided
+    # Note: CareerOneStop API uses the API key as the userId in the URL path
+    userId = user_id or api_key
     
-    params = {
-        "apikey": api_key,
-        "location": location,
-        "maxResults": max_results,
+    # CareerOneStop Training Finder API endpoint
+    # Format: /v1/training/{userId}/{occupation}/{location}
+    # Location can be ZIP code (5 digits) or "City, State"
+    # Occupation can be O*NET-SOC code or keyword
+    url = f"https://api.careeronestop.org/v1/training/{userId}/{occupation}/{location}"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json"
     }
     
-    if program_type:
-        params["programType"] = program_type
-    if distance:
-        params["distance"] = distance
+    params = {}
+    if max_results:
+        params["limit"] = max_results
 
-    logger.info("CareerOneStop search: location='%s', max_results=%s", location, max_results)
+    logger.info("CareerOneStop search: occupation='%s', location='%s', max_results=%s", 
+                occupation, location, max_results)
     
     try:
         with httpx.Client(timeout=20.0) as client:
-            resp = client.get(url, params=params)
+            resp = client.get(url, headers=headers, params=params)
             if resp.status_code != 200:
-                logger.error("CareerOneStop API error: %s", resp.text)
+                logger.error("CareerOneStop API error: status=%s, response=%s", resp.status_code, resp.text)
                 return {
                     "status": "error",
                     "error_message": f"CareerOneStop API error: {resp.status_code} - {resp.text}"
                 }
             data = resp.json()
             
-        programs = data.get("programs", [])
+        # CareerOneStop API returns training programs in various formats
+        # Extract programs from the response structure
+        programs = []
+        if isinstance(data, dict):
+            # Check common response structures
+            programs = data.get("programs", data.get("Programs", data.get("results", [])))
+        elif isinstance(data, list):
+            programs = data
+        
         logger.info("CareerOneStop search returned %d programs", len(programs))
         
         return {
             "status": "success",
-            "programs": programs[:max_results]
+            "programs": programs[:max_results] if programs else []
         }
     except Exception as e:
         logger.error("CareerOneStop search failed: %s", str(e))
@@ -193,5 +209,8 @@ def get_available_apis() -> Dict[str, Dict[str, Any]]:
             "description": "Credentials, learning opportunities, and providers with metadata",
         },
     }
+
+
+
 
 

@@ -22,6 +22,10 @@ interface FullProfile {
     certifications?: string[];
     work_experience?: string;
     career_goals?: string;
+    previous_job_title?: string;
+    mining_role?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
     updated_at?: string;
   } | null;
   metadata: {
@@ -49,6 +53,9 @@ const Profile = () => {
     name?: string;
     career_goals?: string;
     work_experience?: string;
+    previous_job_title?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
     current_zip_code?: string;
     travel_constraint?: string;
     budget_constraint?: string;
@@ -71,6 +78,9 @@ const Profile = () => {
           name: response.data.user.name || '',
           career_goals: response.data.profile?.career_goals || '',
           work_experience: response.data.profile?.work_experience || '',
+          previous_job_title: response.data.profile?.previous_job_title || '',
+          mining_type: response.data.profile?.mining_type || '',
+          years_mining_experience: response.data.profile?.years_mining_experience || undefined,
           current_zip_code: response.data.metadata?.current_zip_code || '',
           travel_constraint: response.data.metadata?.travel_constraint || '',
           budget_constraint: response.data.metadata?.budget_constraint || '',
@@ -99,6 +109,9 @@ const Profile = () => {
         name: response.data.user.name || '',
         career_goals: response.data.profile?.career_goals || '',
         work_experience: response.data.profile?.work_experience || '',
+        previous_job_title: response.data.profile?.previous_job_title || '',
+        mining_type: response.data.profile?.mining_type || '',
+        years_mining_experience: response.data.profile?.years_mining_experience || undefined,
         current_zip_code: response.data.metadata?.current_zip_code || '',
         travel_constraint: response.data.metadata?.travel_constraint || '',
         budget_constraint: response.data.metadata?.budget_constraint || '',
@@ -132,6 +145,9 @@ const Profile = () => {
         name: fullProfile.user.name || '',
         career_goals: fullProfile.profile?.career_goals || '',
         work_experience: fullProfile.profile?.work_experience || '',
+        previous_job_title: fullProfile.profile?.previous_job_title || '',
+        mining_type: fullProfile.profile?.mining_type || '',
+        years_mining_experience: fullProfile.profile?.years_mining_experience || undefined,
         current_zip_code: fullProfile.metadata?.current_zip_code || '',
         travel_constraint: fullProfile.metadata?.travel_constraint || '',
         budget_constraint: fullProfile.metadata?.budget_constraint || '',
@@ -360,6 +376,55 @@ const Profile = () => {
               )}
             </div>
             <div className={styles.fieldGroup}>
+              <label className={styles.label}>Previous Mining Job Title</label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={editData.previous_job_title || ''}
+                  onChange={(e) => setEditData({ ...editData, previous_job_title: e.target.value })}
+                  placeholder="e.g., Continuous Miner Operator, Roof Bolter"
+                  className={styles.input}
+                />
+              ) : (
+                <div className={styles.value}>{profile?.previous_job_title || 'Not specified'}</div>
+              )}
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.label}>Mining Type</label>
+              {editing ? (
+                <select
+                  value={editData.mining_type || ''}
+                  onChange={(e) => setEditData({ ...editData, mining_type: e.target.value })}
+                  className={styles.input}
+                >
+                  <option value="">Select type</option>
+                  <option value="underground">Underground</option>
+                  <option value="surface">Surface</option>
+                  <option value="both">Both</option>
+                </select>
+              ) : (
+                <div className={styles.value}>{profile?.mining_type || 'Not specified'}</div>
+              )}
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.label}>Years of Mining Experience</label>
+              {editing ? (
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={editData.years_mining_experience || ''}
+                  onChange={(e) => setEditData({ ...editData, years_mining_experience: parseInt(e.target.value) || undefined })}
+                  placeholder="Years"
+                  className={styles.input}
+                />
+              ) : (
+                <div className={styles.value}>
+                  {profile?.years_mining_experience ? `${profile.years_mining_experience} years` : 'Not specified'}
+                </div>
+              )}
+            </div>
+            <div className={styles.fieldGroup}>
               <label className={styles.label}>Target Sector</label>
               {editing ? (
                 <input
@@ -571,3 +636,6 @@ const Profile = () => {
 };
 
 export default Profile;
+
+
+

@@ -235,7 +235,8 @@
 }
 
 .skillTag,
-.missingSkillTag {
+.missingSkillTag,
+.certTag {
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -250,6 +251,20 @@
 .missingSkillTag {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.certTag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.localGrowth {
+  color: #059669;
+  font-weight: 500;
+  padding: 0.75rem;
+  background: #d1fae5;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .actionButton {

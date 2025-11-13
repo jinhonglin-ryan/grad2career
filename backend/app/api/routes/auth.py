@@ -52,6 +52,12 @@ def verify_jwt_token(token: str) -> dict:
 @router.get("/google/login")
 async def google_login():
     """启动 Google OAuth 流程"""
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables."
+        )
+    
     params = {
         "client_id": settings.google_client_id,
         "redirect_uri": settings.google_redirect_uri,
@@ -67,6 +73,10 @@ async def google_login():
 @router.get("/google/callback")
 async def google_callback(code: str = None, error: str = None):
     """处理 Google OAuth 回调"""
+    if not settings.google_client_id or not settings.google_client_secret:
+        error_url = f"{settings.frontend_url}/auth/callback?error=Google OAuth is not configured"
+        return RedirectResponse(url=error_url)
+    
     if error:
         error_url = f"{settings.frontend_url}/auth/callback?error={error}"
         return RedirectResponse(url=error_url)

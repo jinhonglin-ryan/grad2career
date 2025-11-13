@@ -10,6 +10,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from google.adk.tools import google_search
 from .schema import FinalPlan
+from app.services.external_apis import careeronestop_search_training
 
 
 logger = logging.getLogger("resource_finder")
@@ -120,6 +121,40 @@ def youtube_get_playlist_items(playlist_id: str, max_results: int) -> dict:
     return {"status": "success", "items": items}
 
 
+def search_training_programs(occupation: str, location: str, max_results: int = 10) -> dict:
+    """Search CareerOneStop for training programs related to an occupation in a specific location.
+    
+    Args:
+        occupation: Occupation name or keyword (e.g., "solar panel installer", "wind turbine technician")
+        location: ZIP code (5 digits) or city, state format
+        max_results: Maximum number of results to return
+    
+    Returns:
+        dict: {status, programs or error_message}
+    """
+    logger.info("Training program search: occupation='%s', location='%s', max_results=%s", 
+                occupation, location, max_results)
+    
+    result = careeronestop_search_training(
+        occupation=occupation,
+        location=location,
+        max_results=max_results
+    )
+    
+    if result["status"] == "error":
+        logger.warning(f"Training program search failed: {result.get('error_message')}")
+        return result
+    
+    programs = result.get("programs", [])
+    logger.info("Training program search returned %d programs", len(programs))
+    
+    return {
+        "status": "success",
+        "programs": programs,
+        "count": len(programs)
+    }
+
+
 search_agent = LlmAgent(
     name="SearchOnlineAgent",
     model="gemini-2.5-flash",
@@ -152,25 +187,45 @@ youtube_agent = LlmAgent(
     output_key="youtube_selection",
 )
 
+training_agent = LlmAgent(
+    name="TrainingProgramFinderAgent",
+    model="gemini-2.5-flash",
+    instruction=(
+        "You are a training program finder. Given a career/occupation and location (ZIP code), "
+        "use the search_training_programs tool to find local training programs, certifications, and licenses. "
+        "Return ONLY JSON in this schema:\n"
+        "{ 'status': 'success' | 'error', 'programs': [...], 'count': int, 'error_message'?: str }.\n"
+        "If the user query mentions a location or ZIP code, use it. Otherwise, ask for location or skip training programs."
+    ),
+    description="Finds local training programs and certifications for a career.",
+    tools=[search_training_programs],
+    output_key="training_programs",
+)
+
 refine_agent = LlmAgent(
     name="RefineCurationAgent",
     model="gemini-2.5-flash",
     instruction=(
-        "Combine the web search and YouTube selection into a clean, concise curated learning plan. "
+        "Combine the web search, YouTube selection, and training programs into a clean, concise curated learning plan. "
+        "When creating the plan, consider:\n"
+        "- User's availability constraints (travel distance, scheduling preferences, weekly hours)\n"
+        "- Selected training programs the user wants to participate in\n"
+        "- Schedule training programs in the calendar based on their start dates and user availability\n"
         "Return ONLY JSON matching the output schema. "
-        "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...] }. "
+        "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...], 'training_programs': [...] }. "
         "Failure example: { 'status': 'error', 'error_message': '...'}.\n\n"
         "Context (do not echo verbatim):\n"
         "- Web search results: {search_results}\n"
-        "- YouTube selection: {youtube_selection}"
+        "- YouTube selection: {youtube_selection}\n"
+        "- Training programs: {training_programs}"
     ),
-    description="Refines results into a final JSON learning plan.",
+    description="Refines results into a final JSON learning plan with videos, resources, and training programs.",
     output_schema=FinalPlan,
     output_key="final_plan",
 )
 
 root_agent = SequentialAgent(
     name="ResourceFinderPipeline",
-    sub_agents=[search_agent, youtube_agent, refine_agent],
-    description="Searches web, finds YouTube playlists, and refines into a curated plan.",
+    sub_agents=[search_agent, youtube_agent, training_agent, refine_agent],
+    description="Searches web, finds YouTube playlists, finds training programs, and refines into a curated plan.",
 )

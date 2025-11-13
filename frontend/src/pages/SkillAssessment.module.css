@@ -1133,3 +1133,228 @@
   font-style: italic;
 }
 
+/* Choice Screen Styles */
+.choiceContainer {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.choiceHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.choiceHeader h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.choiceHeader p {
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+.choiceCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.choiceCard {
+  background: white;
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.choiceCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: #667eea;
+}
+
+.choiceCard.recommended {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+}
+
+.choiceBadge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.choiceIcon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  color: #667eea;
+}
+
+.choiceCard h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.choiceDescription {
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.choiceFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+}
+
+.choiceFeatures li {
+  padding: 0.5rem 0;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.choiceButton {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-top: 1rem;
+}
+
+.choiceButton:hover {
+  transform: translateY(-2px);
+}
+
+/* Completed View Styles */
+.completedView {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.completedHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.successIcon {
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.completedHeader h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.completedHeader p {
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+.completedActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+}
+
+.updateButton,
+.primaryButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.updateButton {
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+}
+
+.updateButton:hover {
+  background: #f5f7ff;
+  transform: translateY(-2px);
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.primaryButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+}
+
+.skillsDisplay {
+  background: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.skillsDisplay h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+}
+
+.skillGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .choiceCards {
+    grid-template-columns: 1fr;
+  }
+
+  .completedActions {
+    flex-direction: column;
+  }
+
+  .updateButton,
+  .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

@@ -110,6 +110,10 @@ cat > .env << EOF
 SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 SUPABASE_ANON_KEY=your_anon_key
+
+# Optional: Google OAuth (required only if using Google sign-in)
+# GOOGLE_CLIENT_ID=your_google_client_id
+# GOOGLE_CLIENT_SECRET=your_google_client_secret
 EOF
 
 # Run server

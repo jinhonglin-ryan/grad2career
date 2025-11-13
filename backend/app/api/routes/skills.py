@@ -11,6 +11,7 @@ from app.services.conversational_assessment import (
     TURN_PROMPTS
 )
 from app.services.session_manager import session_manager
+from app.services.mining_skill_mapper import extract_transferable_skills
 from app.core.supabase import get_supabase
 
 router = APIRouter()
@@ -422,4 +423,209 @@ async def get_user_skill_profile(user_id: str):
         logger = logging.getLogger(__name__)
         logger.error(f"Error fetching skill profile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch skill profile: {str(e)}")
+
+
+class MiningQuestionnaireRequest(BaseModel):
+    """Request model for mining questionnaire."""
+    user_id: str = Field(..., description="User ID")
+    last_mining_job_title: Optional[str] = Field(None, description="Last mining job title")
+    years_experience: Optional[int] = Field(None, description="Years of mining experience")
+    mining_type: Optional[str] = Field(None, description="Mining type: underground, surface, or both")
+    operated_heavy_machinery: bool = Field(False, description="Whether user operated heavy machinery")
+    machinery_types: List[str] = Field(default_factory=list, description="Types of machinery operated")
+    performed_maintenance: bool = Field(False, description="Whether user performed maintenance")
+    maintenance_types: List[str] = Field(default_factory=list, description="Types of maintenance performed")
+    safety_training_completed: bool = Field(False, description="Whether user completed safety training")
+    safety_certifications: List[str] = Field(default_factory=list, description="Safety certifications (MSHA, OSHA, etc.)")
+    supervised_team: bool = Field(False, description="Whether user supervised a team")
+    team_size: Optional[int] = Field(None, description="Size of team supervised")
+    welding_experience: bool = Field(False, description="Whether user has welding experience")
+    electrical_work: bool = Field(False, description="Whether user performed electrical work")
+    blasting_experience: bool = Field(False, description="Whether user has blasting experience")
+    cdl_license: bool = Field(False, description="Whether user has CDL license")
+
+
+@router.post("/assess/questionnaire")
+async def submit_mining_questionnaire(request: MiningQuestionnaireRequest):
+    """
+    Submit mining-specific questionnaire and extract transferable skills.
+    
+    This is the recommended assessment method for coal miners.
+    """
+    try:
+        supabase = get_supabase()
+        
+        # Convert request to dictionary for processing
+        questionnaire_data = request.model_dump()
+        
+        # Extract transferable skills from questionnaire
+        transferable_skills = extract_transferable_skills(questionnaire_data)
+        
+        # Create a session ID for this assessment
+        import uuid
+        session_id = str(uuid.uuid4())
+        
+        # Save questionnaire responses to mining_questionnaire_responses table
+        questionnaire_response_data = {
+            'id': session_id,
+            'user_id': request.user_id,
+            'last_mining_job_title': request.last_mining_job_title,
+            'years_experience': request.years_experience,
+            'mining_type': request.mining_type,
+            'operated_heavy_machinery': request.operated_heavy_machinery,
+            'machinery_types': request.machinery_types,
+            'performed_maintenance': request.performed_maintenance,
+            'maintenance_types': request.maintenance_types,
+            'safety_training_completed': request.safety_training_completed,
+            'safety_certifications': request.safety_certifications,
+            'supervised_team': request.supervised_team,
+            'team_size': request.team_size,
+            'welding_experience': request.welding_experience,
+            'electrical_work': request.electrical_work,
+            'blasting_experience': request.blasting_experience,
+            'cdl_license': request.cdl_license,
+            'questionnaire_data': questionnaire_data,
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Also create an assessment session for consistency
+        assessment_session_data = {
+            'id': session_id,
+            'user_id': request.user_id,
+            'messages': [
+                {"role": "system", "content": "Mining questionnaire completed"},
+                {"role": "user", "content": f"Completed questionnaire: {request.last_mining_job_title or 'Mining professional'}"}
+            ],
+            'extracted_skills': [
+                {
+                    "category": "Mining Skills",
+                    "user_phrase": skill,
+                    "onet_task_codes": []
+                }
+                for skill in transferable_skills
+            ],
+            'status': 'completed',
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        try:
+            # Save questionnaire responses
+            supabase.table('mining_questionnaire_responses').insert(questionnaire_response_data).execute()
+        except Exception as e:
+            logger.warning(f"Could not save to mining_questionnaire_responses (table may not exist yet): {e}")
+        
+        try:
+            # Save assessment session
+            supabase.table('assessment_sessions').insert(assessment_session_data).execute()
+        except Exception as e:
+            logger.warning(f"Could not save assessment session: {e}")
+        
+        # Update user profile with mining-specific data and skills
+        profile_data = {
+            'user_id': request.user_id,
+            'skills': transferable_skills,
+            'tools': request.machinery_types + (request.maintenance_types if request.performed_maintenance else []),
+            'certifications': request.safety_certifications,
+            'previous_job_title': request.last_mining_job_title,
+            'mining_role': _determine_mining_role(request.last_mining_job_title),
+            'mining_type': request.mining_type,
+            'years_mining_experience': request.years_experience,
+            'mining_questionnaire_responses': questionnaire_data,
+            'work_experience': _generate_work_experience_summary(request),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Check if profile exists
+        existing_profile = supabase.table('user_profiles').select('user_id').eq('user_id', request.user_id).execute()
+        
+        if existing_profile.data and len(existing_profile.data) > 0:
+            # Update existing profile
+            supabase.table('user_profiles').update(profile_data).eq('user_id', request.user_id).execute()
+        else:
+            # Create new profile
+            profile_data['created_at'] = datetime.utcnow().isoformat()
+            supabase.table('user_profiles').insert(profile_data).execute()
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "transferable_skills": transferable_skills,
+            "skill_count": len(transferable_skills),
+            "message": "Questionnaire submitted successfully. Your skills have been extracted and saved."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing mining questionnaire: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process questionnaire: {str(e)}")
+
+
+def _determine_mining_role(job_title: Optional[str]) -> Optional[str]:
+    """Determine mining role category from job title."""
+    if not job_title:
+        return None
+    
+    job_lower = job_title.lower()
+    if "operator" in job_lower or "driver" in job_lower:
+        return "Operator"
+    elif "maintenance" in job_lower or "technician" in job_lower or "electrician" in job_lower:
+        return "Maintenance"
+    elif "supervisor" in job_lower or "foreman" in job_lower or "manager" in job_lower:
+        return "Supervisor"
+    else:
+        return "Other"
+
+
+def _generate_work_experience_summary(request: MiningQuestionnaireRequest) -> str:
+    """Generate a work experience summary from questionnaire data."""
+    parts = []
+    
+    if request.last_mining_job_title:
+        parts.append(f"Worked as {request.last_mining_job_title}")
+    
+    if request.years_experience:
+        parts.append(f"for {request.years_experience} years")
+    
+    if request.mining_type:
+        parts.append(f"in {request.mining_type} mining")
+    
+    if request.operated_heavy_machinery:
+        if request.machinery_types:
+            parts.append(f"Operated: {', '.join(request.machinery_types)}")
+        else:
+            parts.append("Operated heavy machinery")
+    
+    if request.performed_maintenance:
+        if request.maintenance_types:
+            parts.append(f"Performed maintenance on: {', '.join(request.maintenance_types)}")
+        else:
+            parts.append("Performed equipment maintenance")
+    
+    if request.safety_training_completed:
+        if request.safety_certifications:
+            parts.append(f"Safety certifications: {', '.join(request.safety_certifications)}")
+        else:
+            parts.append("Completed safety training")
+    
+    if request.supervised_team:
+        if request.team_size:
+            parts.append(f"Supervised team of {request.team_size}")
+        else:
+            parts.append("Supervised team")
+    
+    additional_skills = []
+    if request.welding_experience:
+        additional_skills.append("welding")
+    if request.electrical_work:
+        additional_skills.append("electrical work")
+    if request.blasting_experience:
+        additional_skills.append("blasting")
+    if request.cdl_license:
+        additional_skills.append("CDL license")
+    
+    if additional_skills:
+        parts.append(f"Additional skills: {', '.join(additional_skills)}")
+    
+    return ". ".join(parts) + "." if parts else "Mining professional with experience in coal industry."
 

@@ -7,14 +7,22 @@ import styles from './CareerMatch.module.css';
 
 interface Career {
   id: string;
-  title: string;
-  matchScore: number;
-  salary: string;
-  growth: string;
-  location: string;
-  requiredSkills: string[];
-  missingSkills: string[];
+  career_title: string;
+  match_score: number;
+  salary_range: string;
+  growth_rate: string;
+  local_demand_rating?: string;
+  commute_distance_miles?: number;
+  commute_time_minutes?: number;
+  local_job_growth?: string;
+  transferable_skills: string[];
+  matching_required_skills: string[];
+  missing_skills: string[];
   description: string;
+  category?: string;
+  appalachian_states?: string[];
+  required_certifications?: string[];
+  entry_level_education?: string;
 }
 
 const CareerMatch = () => {
@@ -31,11 +39,25 @@ const CareerMatch = () => {
   const fetchCareerMatches = async () => {
     try {
       const response = await api.get('/careers/match');
-      setCareers(response.data.careers || mockCareers);
-    } catch (error) {
+      if (response.data && response.data.careers) {
+        // Transform API response to match component expectations
+        const transformedCareers = response.data.careers.map((career: any) => ({
+          ...career,
+          // Keep all fields from API, they're already in the right format
+        }));
+        setCareers(transformedCareers);
+      } else {
+        setCareers([]);
+      }
+    } catch (error: any) {
       console.error('Error fetching careers:', error);
-      // Use mock data for development
-      setCareers(mockCareers);
+      if (error.response?.status === 404) {
+        // User hasn't completed assessment yet
+        setCareers([]);
+      } else {
+        // Use mock data for development/fallback
+        setCareers(mockCareers);
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +107,12 @@ const CareerMatch = () => {
       <div className={styles.mainContent}>
         <div className={styles.header}>
           <h1>Your Career Matches</h1>
-          <p>Based on your skills, here are careers that fit your profile</p>
+          <p>Based on your mining experience, here are careers that fit your profile</p>
+          {careers.length === 0 && !loading && (
+            <p style={{ color: '#ef4444', marginTop: '1rem' }}>
+              No career matches found. Please complete the skill assessment first.
+            </p>
+          )}
         </div>
 
         <div className={styles.content}>
@@ -99,24 +126,26 @@ const CareerMatch = () => {
                 onClick={() => handleSelectCareer(career)}
               >
                 <div className={styles.cardHeader}>
-                  <h3>{career.title}</h3>
+                  <h3>{career.career_title}</h3>
                   <div className={styles.matchScore}>
-                    {career.matchScore}% Match
+                    {career.match_score}% Match
                   </div>
                 </div>
                 <div className={styles.cardInfo}>
                   <div className={styles.infoItem}>
                     <DollarSign size={16} />
-                    <span>{career.salary}</span>
+                    <span>{career.salary_range || 'Salary varies'}</span>
                   </div>
                   <div className={styles.infoItem}>
                     <TrendingUp size={16} />
-                    <span>{career.growth} growth</span>
+                    <span>{career.growth_rate || 'Growing field'}</span>
                   </div>
-                  <div className={styles.infoItem}>
-                    <MapPin size={16} />
-                    <span>{career.location}</span>
-                  </div>
+                  {career.local_demand_rating && (
+                    <div className={styles.infoItem}>
+                      <MapPin size={16} />
+                      <span>Demand: {career.local_demand_rating}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -124,36 +153,76 @@ const CareerMatch = () => {
 
           {selectedCareer && (
             <div className={styles.detailPanel}>
-              <h2>{selectedCareer.title}</h2>
-              <p className={styles.description}>{selectedCareer.description}</p>
+              <h2>{selectedCareer.career_title}</h2>
+              <p className={styles.description}>{selectedCareer.description || 'A great career transition opportunity for coal miners.'}</p>
 
-              <div className={styles.skillSection}>
-                <h3>
-                  <Target size={20} />
-                  Skills You Have
-                </h3>
-                <div className={styles.skillTags}>
-                  {selectedCareer.requiredSkills.map((skill, index) => (
-                    <span key={index} className={styles.skillTag}>
-                      {skill}
-                    </span>
-                  ))}
+              {selectedCareer.transferable_skills && selectedCareer.transferable_skills.length > 0 && (
+                <div className={styles.skillSection}>
+                  <h3>
+                    <Target size={20} />
+                    Your Transferable Mining Skills
+                  </h3>
+                  <div className={styles.skillTags}>
+                    {selectedCareer.transferable_skills.map((skill, index) => (
+                      <span key={index} className={styles.skillTag}>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {selectedCareer.missingSkills.length > 0 && (
+              {selectedCareer.matching_required_skills && selectedCareer.matching_required_skills.length > 0 && (
+                <div className={styles.skillSection}>
+                  <h3>
+                    <Target size={20} />
+                    Skills You Have
+                  </h3>
+                  <div className={styles.skillTags}>
+                    {selectedCareer.matching_required_skills.map((skill, index) => (
+                      <span key={index} className={styles.skillTag}>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedCareer.missing_skills && selectedCareer.missing_skills.length > 0 && (
                 <div className={styles.skillSection}>
                   <h3>
                     <Target size={20} />
                     Skills to Learn
                   </h3>
                   <div className={styles.skillTags}>
-                    {selectedCareer.missingSkills.map((skill, index) => (
+                    {selectedCareer.missing_skills.map((skill, index) => (
                       <span key={index} className={styles.missingSkillTag}>
                         {skill}
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {selectedCareer.required_certifications && selectedCareer.required_certifications.length > 0 && (
+                <div className={styles.skillSection}>
+                  <h3>
+                    <Target size={20} />
+                    Required Certifications
+                  </h3>
+                  <div className={styles.skillTags}>
+                    {selectedCareer.required_certifications.map((cert, index) => (
+                      <span key={index} className={styles.certTag}>
+                        {cert}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedCareer.local_job_growth && (
+                <div className={styles.skillSection}>
+                  <p className={styles.localGrowth}>{selectedCareer.local_job_growth}</p>
                 </div>
               )}
 
@@ -171,51 +240,31 @@ const CareerMatch = () => {
   );
 };
 
-// Mock data for development
+// Mock data for development (fallback)
 const mockCareers: Career[] = [
   {
     id: '1',
-    title: 'Solar Panel Installer',
-    matchScore: 92,
-    salary: '$45,000 - $65,000',
-    growth: '27%',
-    location: 'Nationwide',
-    requiredSkills: ['Safety Protocols', 'Hand Tools', 'Physical Stamina'],
-    missingSkills: ['Electrical Systems', 'Solar Technology', 'NABCEP Certification'],
+    career_title: 'Solar Panel Installer',
+    match_score: 92,
+    salary_range: '$45,000 - $65,000',
+    growth_rate: 'Much faster than average (52% growth)',
+    local_demand_rating: 'high',
+    transferable_skills: ['Electrical work', 'Safety training', 'Tool proficiency'],
+    matching_required_skills: ['Safety Protocols', 'Hand Tools', 'Physical Stamina'],
+    missing_skills: ['Electrical Systems', 'Solar Technology', 'NABCEP Certification'],
     description: 'Install and maintain solar panel systems on rooftops and other structures.',
   },
   {
     id: '2',
-    title: 'Wind Turbine Technician',
-    matchScore: 88,
-    salary: '$52,000 - $75,000',
-    growth: '44%',
-    location: 'Midwest, Coastal',
-    requiredSkills: ['Mechanical Aptitude', 'Safety Standards', 'Problem Solving'],
-    missingSkills: ['Hydraulics', 'Electrical Systems', 'GWO Certification'],
+    career_title: 'Wind Turbine Technician',
+    match_score: 88,
+    salary_range: '$45,000 - $70,000',
+    growth_rate: 'Much faster than average (68% growth)',
+    local_demand_rating: 'high',
+    transferable_skills: ['Heavy machinery operation', 'Electrical maintenance', 'Safety training'],
+    matching_required_skills: ['Mechanical Aptitude', 'Safety Standards', 'Problem Solving'],
+    missing_skills: ['Hydraulics', 'Electrical Systems', 'GWO Certification'],
     description: 'Maintain and repair wind turbines to ensure optimal energy production.',
-  },
-  {
-    id: '3',
-    title: 'HVAC Technician',
-    matchScore: 85,
-    salary: '$48,000 - $70,000',
-    growth: '15%',
-    location: 'All regions',
-    requiredSkills: ['Equipment Operation', 'Customer Service', 'Troubleshooting'],
-    missingSkills: ['EPA Certification', 'Refrigeration', 'Climate Control Systems'],
-    description: 'Install and maintain heating, ventilation, and air conditioning systems.',
-  },
-  {
-    id: '4',
-    title: 'Heavy Equipment Operator',
-    matchScore: 82,
-    salary: '$46,000 - $68,000',
-    growth: '12%',
-    location: 'Construction sites',
-    requiredSkills: ['Equipment Operation', 'Safety Awareness', 'Attention to Detail'],
-    missingSkills: ['CDL License', 'GPS Systems', 'Site Management Software'],
-    description: 'Operate heavy machinery for construction and infrastructure projects.',
   },
 ];
 

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import Dashboard from './pages/Dashboard';
 import SkillAssessment from './pages/SkillAssessment';
+import MiningQuestionnaire from './pages/MiningQuestionnaire';
 import CareerMatch from './pages/CareerMatch';
 import LearningPath from './pages/LearningPath';
 import VideoDetail from './pages/VideoDetail';
@@ -24,6 +25,7 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/assessment" element={<SkillAssessment />} />
+      <Route path="/assessment/questionnaire" element={<MiningQuestionnaire />} />
       <Route path="/careers" element={<CareerMatch />} />
       <Route path="/learning" element={<LearningPath />} />
       <Route path="/learning/video/:videoId" element={<VideoDetail />} />

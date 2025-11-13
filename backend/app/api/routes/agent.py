@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+import logging
 
 import asyncio
 import uuid
@@ -13,6 +14,7 @@ from google.adk.sessions import InMemorySessionService
 from app.services.agents.resource_finder_agent.agent import root_agent
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 APP_NAME = "resource_finder_agent"
@@ -28,6 +30,8 @@ class AskBody(BaseModel):
     query: str
     user_id: Optional[str] = "web"
     session_id: Optional[str] = "default"
+    career_title: Optional[str] = None
+    career_id: Optional[str] = None
 
 
 async def _ensure_session(user_id: str, session_id: str) -> None:
@@ -115,10 +119,85 @@ def _event_to_step(event: Any, index: int) -> Dict[str, Any]:
     return step
 
 
-async def _run_job(job_id: str, query: str, user_id: str, session_id: str) -> None:
+async def _run_job(job_id: str, query: str, user_id: str, session_id: str, 
+                   career_title: Optional[str] = None, career_id: Optional[str] = None) -> None:
     try:
         await _ensure_session(user_id, session_id)
-        content = types.Content(role="user", parts=[types.Part(text=query)])
+        
+        # Enhance query with user context if available
+        enhanced_query = query
+        if user_id and user_id != "web":
+            try:
+                from app.core.supabase import get_supabase
+                supabase = get_supabase()
+                
+                # Get user availability information
+                user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
+                user_metadata = {}
+                if user_result.data and len(user_result.data) > 0:
+                    user_metadata = user_result.data[0].get('metadata', {}) or {}
+                
+                # Get selected training programs
+                profile_result = supabase.table('user_profiles')\
+                    .select('selected_training_programs')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                
+                selected_programs = []
+                if profile_result.data and len(profile_result.data) > 0:
+                    all_selected = profile_result.data[0].get('selected_training_programs', []) or []
+                    # Filter for current career if career_id provided
+                    if career_id:
+                        selected_programs = [
+                            s for s in all_selected 
+                            if s.get('career_id') == career_id
+                        ]
+                    else:
+                        selected_programs = all_selected
+                
+                # Build context string
+                context_parts = []
+                
+                # Add availability constraints
+                if user_metadata:
+                    zip_code = user_metadata.get('current_zip_code')
+                    travel_constraint = user_metadata.get('travel_constraint')
+                    scheduling = user_metadata.get('scheduling')
+                    weekly_hours = user_metadata.get('weekly_hours_constraint')
+                    
+                    if zip_code:
+                        context_parts.append(f"User location: ZIP code {zip_code}")
+                    if travel_constraint:
+                        context_parts.append(f"Travel constraint: {travel_constraint}")
+                    if scheduling:
+                        context_parts.append(f"Scheduling preference: {scheduling}")
+                    if weekly_hours:
+                        context_parts.append(f"Weekly hours available: {weekly_hours}")
+                
+                # Add selected training programs
+                if selected_programs and len(selected_programs) > 0:
+                    programs_info = []
+                    for sel in selected_programs:
+                        programs = sel.get('selected_programs', [])
+                        if programs:
+                            programs_info.append(f"{len(programs)} programs for {sel.get('career_title', 'career')}")
+                    if programs_info:
+                        context_parts.append(f"User selected training programs: {', '.join(programs_info)}")
+                
+                # Add career context
+                if career_title:
+                    context_parts.append(f"Target career: {career_title}")
+                
+                # Enhance query with context
+                if context_parts:
+                    context_str = "\n".join(context_parts)
+                    enhanced_query = f"{query}\n\nUser Context:\n{context_str}\n\nWhen creating the learning plan, consider the user's availability constraints and include their selected training programs in the schedule."
+            
+            except Exception as e:
+                logger.warning(f"Error fetching user context for agent: {e}")
+                # Continue with original query if context fetch fails
+        
+        content = types.Content(role="user", parts=[types.Part(text=enhanced_query)])
 
         events = RUNNER.run_async(
             user_id=user_id,
@@ -198,7 +277,14 @@ async def ask_agent(body: AskBody) -> Dict[str, Any]:
     }
 
     # Fire-and-forget background task on the current loop
-    asyncio.create_task(_run_job(job_id, body.query, body.user_id, body.session_id))
+    asyncio.create_task(_run_job(
+        job_id, 
+        body.query, 
+        body.user_id, 
+        body.session_id,
+        body.career_title,
+        body.career_id
+    ))
 
     return {"job_id": job_id, "status": "running"}
 

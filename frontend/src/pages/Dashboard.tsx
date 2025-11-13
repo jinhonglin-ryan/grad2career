@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Briefcase, LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, Edit2, HardHat } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import styles from './Dashboard.module.css';
 
 interface SkillProfile {
@@ -16,26 +18,79 @@ interface SkillProfile {
     skills?: string[];
     tools?: string[];
     work_experience?: string;
+    previous_job_title?: string;
+    mining_role?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
   };
   updated_at?: string;
+}
+
+interface FullProfile {
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+    onboarding_completed: boolean;
+  };
+  profile: {
+    previous_job_title?: string;
+    mining_role?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
+    work_experience?: string;
+    career_goals?: string;
+  } | null;
+  metadata: {
+    current_zip_code?: string;
+    travel_constraint?: string;
+    budget_constraint?: string;
+    scheduling?: string;
+    weekly_hours_constraint?: string;
+    transition_goal?: string;
+    transition_goal_text?: string;
+    target_sector?: string;
+  };
 }
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
+  const [fullProfile, setFullProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editData, setEditData] = useState<{
+    previous_job_title?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
+  }>({});
 
   useEffect(() => {
-    const fetchSkillProfile = async () => {
+    const fetchData = async () => {
       if (!user?.id) {
         setLoading(false);
         return;
       }
 
       try {
-        const response = await api.get(`/skills/profile/${user.id}`);
-        setSkillProfile(response.data);
+        // Fetch skill profile
+        const skillResponse = await api.get(`/skills/profile/${user.id}`);
+        setSkillProfile(skillResponse.data);
+
+        // Fetch full profile for mining-specific data
+        try {
+          const profileResponse = await api.get('/auth/user/profile');
+          setFullProfile(profileResponse.data);
+          // Initialize edit data (only mining-specific fields for dashboard)
+          setEditData({
+            previous_job_title: profileResponse.data.profile?.previous_job_title || '',
+            mining_type: profileResponse.data.profile?.mining_type || '',
+            years_mining_experience: profileResponse.data.profile?.years_mining_experience || undefined,
+          });
+        } catch (error) {
+          console.error('Error fetching full profile:', error);
+        }
       } catch (error) {
         console.error('Error fetching skill profile:', error);
         setSkillProfile(null);
@@ -44,11 +99,49 @@ const Dashboard = () => {
       }
     };
 
-    fetchSkillProfile();
+    fetchData();
   }, [user?.id]);
+
+  const handleSaveEdit = async (section: string) => {
+    try {
+      await api.put('/auth/user/profile', editData);
+      toast.success('Profile updated successfully!');
+      
+      // Refresh profile data
+      const profileResponse = await api.get('/auth/user/profile');
+      setFullProfile(profileResponse.data);
+      setEditingSection(null);
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update profile');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (fullProfile) {
+      setEditData({
+        previous_job_title: fullProfile.profile?.previous_job_title || '',
+        mining_type: fullProfile.profile?.mining_type || '',
+        years_mining_experience: fullProfile.profile?.years_mining_experience || undefined,
+      });
+    }
+    setEditingSection(null);
+  };
 
   return (
     <div className={styles.container}>
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
           <div className={styles.logo} onClick={() => navigate('/')}>
@@ -271,7 +364,16 @@ const Dashboard = () => {
 
           <div className={styles.profileCard}>
             <div className={styles.cardHeader}>
-              <h2>Your Profile</h2>
+              <h2>Your Mining Profile</h2>
+              {!editingSection && (
+                <button 
+                  className={styles.editIconButton}
+                  onClick={() => setEditingSection('mining')}
+                  title="Edit mining information"
+                >
+                  <Edit2 size={18} />
+                </button>
+              )}
             </div>
             <div className={styles.profileHeader}>
               <div className={styles.profileAvatar}>
@@ -282,6 +384,86 @@ const Dashboard = () => {
                 <p>{user?.email}</p>
               </div>
             </div>
+
+            {/* Mining-Specific Information */}
+            {(fullProfile?.profile?.previous_job_title || fullProfile?.profile?.mining_type || editingSection === 'mining') && (
+              <div className={styles.miningInfoSection}>
+                <div className={styles.sectionTitle}>
+                  <HardHat size={20} />
+                  <h3>Mining Background</h3>
+                </div>
+                {editingSection === 'mining' ? (
+                  <div className={styles.editForm}>
+                    <div className={styles.formGroup}>
+                      <label>Previous Mining Job Title</label>
+                      <input
+                        type="text"
+                        value={editData.previous_job_title || ''}
+                        onChange={(e) => setEditData({ ...editData, previous_job_title: e.target.value })}
+                        placeholder="e.g., Continuous Miner Operator"
+                        className={styles.input}
+                      />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label>Mining Type</label>
+                      <select
+                        value={editData.mining_type || ''}
+                        onChange={(e) => setEditData({ ...editData, mining_type: e.target.value })}
+                        className={styles.input}
+                      >
+                        <option value="">Select type</option>
+                        <option value="underground">Underground</option>
+                        <option value="surface">Surface</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label>Years of Experience</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={editData.years_mining_experience || ''}
+                        onChange={(e) => setEditData({ ...editData, years_mining_experience: parseInt(e.target.value) || undefined })}
+                        placeholder="Years"
+                        className={styles.input}
+                      />
+                    </div>
+                    <div className={styles.editActions}>
+                      <button onClick={() => handleSaveEdit('mining')} className={styles.saveButton}>
+                        Save
+                      </button>
+                      <button onClick={handleCancelEdit} className={styles.cancelButton}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.infoGrid}>
+                    {fullProfile?.profile?.previous_job_title && (
+                      <div className={styles.infoItem}>
+                        <span className={styles.label}>Previous Job</span>
+                        <span className={styles.value}>{fullProfile.profile.previous_job_title}</span>
+                      </div>
+                    )}
+                    {fullProfile?.profile?.mining_type && (
+                      <div className={styles.infoItem}>
+                        <span className={styles.label}>Mining Type</span>
+                        <span className={styles.value}>{fullProfile.profile.mining_type}</span>
+                      </div>
+                    )}
+                    {fullProfile?.profile?.years_mining_experience && (
+                      <div className={styles.infoItem}>
+                        <span className={styles.label}>Experience</span>
+                        <span className={styles.value}>{fullProfile.profile.years_mining_experience} years</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+
             <div className={styles.profileInfo}>
               <div className={styles.profileItem}>
                 <div className={styles.itemIcon}>
@@ -332,12 +514,22 @@ const Dashboard = () => {
               </div>
             )}
             <div className={styles.profileActions}>
-              <button className={styles.editButton} onClick={() => navigate('/profile')}>
+              <button 
+                type="button"
+                className={styles.editButton} 
+                onClick={() => navigate('/profile')}
+              >
                 <User size={18} />
                 View Full Profile
               </button>
-              <button className={styles.secondaryButton} onClick={() => navigate('/assessment')}>
-                {skillProfile?.has_assessment ? 'View/Update Skills' : 'Start Assessment'}
+              <button 
+                type="button"
+                className={styles.secondaryButton} 
+                onClick={() => {
+                  navigate('/assessment');
+                }}
+              >
+                {skillProfile?.has_assessment ? 'Update Assessment' : 'Start Assessment'}
               </button>
             </div>
           </div>

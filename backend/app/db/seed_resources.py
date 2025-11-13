@@ -30,11 +30,11 @@ resources = [
     },
     {
         "title": "CareerOneStop Web API",
-        "url": "https://www.careeronestop.org/Developers/WebAPI/registration.aspx",
-        "description": "State and local training programs, certifications, licenses, workforce boards, with filters for location, distance, program type, and more. Use careeronestop_search_training() from app/services/external_apis.py",
+        "url": "https://api.careeronestop.org",
+        "description": "State and local training programs, certifications, licenses, workforce boards, with filters for location, distance, program type, and more. Integrated via careeronestop_search_training() in app/services/external_apis.py and available in the resource_finder_agent for learning path generation.",
         "source": "CareerOneStop",
         "resource_type": "API",
-        # Note: Register at the URL above and set CAREERONESTOP_API_KEY in .env
+        # Note: Register at https://www.careeronestop.org/Developers/WebAPI/registration.aspx and set CAREERONESTOP_API_KEY in .env
     },
     {
         "title": "Credential Engine Registry Search API",
