@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+  background: #F7F6F3; /* Sand 50 */
   padding-top: 88px;
 }
 
@@ -10,9 +10,9 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
   z-index: 100;
 }
 
@@ -79,7 +79,7 @@
 .userAvatar {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563EB; /* Electric Blue 600 */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -87,11 +87,11 @@
   color: white;
   font-weight: 700;
   font-size: 1.125rem;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
 }
 
 .userName {
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
   font-weight: 600;
   font-size: 0.9375rem;
 }
@@ -102,9 +102,9 @@
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
   background: white;
-  color: #6b7280;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.625rem;
+  color: #475569; /* Slate 600 */
+  border: 2px solid #E2E8F0; /* Slate 200 */
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
@@ -112,9 +112,9 @@
 }
 
 .logoutButton:hover {
-  background: #fafbfc;
-  border-color: #d1d5db;
-  color: #ef4444;
+  background: #F8FAFC; /* Slate 50 */
+  border-color: #CBD5E1; /* Slate 300 */
+  color: #DC2626; /* Error red */
 }
 
 .mainContent {
@@ -126,11 +126,11 @@
 /* Welcome Section */
 .welcomeSection {
   background: white;
-  border-radius: 1.5rem;
+  border-radius: 16px; /* 16px radius */
   padding: 3rem;
   margin-bottom: 2.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f3f4f6;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); /* Subtle elevation */
+  border: 1px solid #E2E8F0; /* Slate 200 */
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 3rem;
@@ -221,16 +221,17 @@
 .progressPercent {
   display: block;
   font-size: 1.75rem;
-  font-weight: 800;
-  color: #1f2937;
+  font-weight: 700;
+  color: #0F172A; /* Anthracite 900 */
   line-height: 1;
   margin-bottom: 0.25rem;
+  font-variant-numeric: tabular-nums; /* Tabular numerals */
 }
 
 .progressLabel {
   display: block;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   font-weight: 600;
 }
 
@@ -241,14 +242,16 @@
 
 .sectionHeader h2 {
   font-size: 1.75rem;
-  font-weight: 800;
-  color: #1f2937;
+  font-weight: 700;
+  color: #0F172A; /* Anthracite 900 */
   margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
 }
 
 .sectionHeader p {
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   font-size: 1.0625rem;
+  font-weight: 400;
 }
 
 /* Quick Actions */
@@ -262,15 +265,15 @@
 
 .actionCard {
   background: white;
-  border-radius: 1.5rem;
+  border-radius: 16px; /* 16px radius */
   padding: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   transition: all 0.3s;
   cursor: pointer;
-  border: 2px solid transparent;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 2px solid #E2E8F0; /* Slate 200 */
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); /* Subtle elevation */
   position: relative;
   overflow: hidden;
 }
@@ -291,11 +294,11 @@
 }
 
 .actionCard.primary::before {
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #2563EB 0%, #0EA5A5 100%); /* Electric Blue to Teal */
 }
 
 .actionCard.secondary::before {
-  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+  background: linear-gradient(90deg, #0EA5A5 0%, #14B8A6 100%); /* Teal gradient */
 }
 
 .actionCard.tertiary::before {

@@ -426,6 +426,15 @@ async def update_user_profile(profile_update: dict, request: Request):
             profile_updates['career_goals'] = profile_update['career_goals']
         if 'work_experience' in profile_update:
             profile_updates['work_experience'] = profile_update['work_experience']
+        # Mining-specific fields
+        if 'previous_job_title' in profile_update:
+            profile_updates['previous_job_title'] = profile_update['previous_job_title']
+        if 'mining_role' in profile_update:
+            profile_updates['mining_role'] = profile_update['mining_role']
+        if 'mining_type' in profile_update:
+            profile_updates['mining_type'] = profile_update['mining_type']
+        if 'years_mining_experience' in profile_update:
+            profile_updates['years_mining_experience'] = profile_update['years_mining_experience']
         # Note: skills, tools, certifications are handled by the assessment flow
         # and stored in JSONB columns which may not exist in all database versions
         

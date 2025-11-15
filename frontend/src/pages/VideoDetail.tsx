@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Briefcase, LogOut, ArrowLeft, BookOpen, Save, Check } from 'lucide-react';
+import { LogOut, ArrowLeft, BookOpen, Save, Check } from 'lucide-react';
 import { Spin, Alert, Input, Button, message } from 'antd';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Logo from '../components/Logo';
 import styles from './LearningPath.module.css';
 
 type TranscriptItem = { text: string; start?: number; duration?: number };
@@ -107,10 +108,7 @@ const VideoDetail = () => {
     <div className={styles.container}>
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/dashboard')}>
-            <Briefcase className={styles.logoIcon} />
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button 
               onClick={() => navigate('/learning', { state: { career: state?.career } })} 

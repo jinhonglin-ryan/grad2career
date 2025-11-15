@@ -1,17 +1,27 @@
 .container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #F7F6F3; /* Sand 50 */
+  padding-top: 72px; /* Account for fixed nav */
 }
 
 .nav {
-  background: rgba(255, 255, 255, 0.95);
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
+  z-index: 100;
+  padding: 0;
 }
 
 .navContent {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
+  height: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Briefcase, LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { Calendar, Badge, Input, Button, Spin, Empty, Modal, Steps, Progress, Checkbox, Tooltip, message } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Logo from '../components/Logo';
 import styles from './LearningPath.module.css';
 
 type VideoItem = {
@@ -532,10 +533,7 @@ const LearningPath = () => {
     <div className={styles.container}>
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/dashboard')}>
-            <Briefcase className={styles.logoIcon} />
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
               <ArrowLeft size={18} />

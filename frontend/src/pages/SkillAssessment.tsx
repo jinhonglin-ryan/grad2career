@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Logo from '../components/Logo';
 import styles from './SkillAssessment.module.css';
 
 interface Message {
@@ -342,10 +343,7 @@ const SkillAssessment = () => {
       <div className={styles.container}>
         <nav className={styles.nav}>
           <div className={styles.navContent}>
-            <div className={styles.logo} onClick={() => navigate('/')}>
-              <Briefcase className={styles.logoIcon} />
-              <span className={styles.logoText}>SkillBridge</span>
-            </div>
+            <Logo variant="icon" onClick={() => navigate('/dashboard')} />
             <div className={styles.navRight}>
               <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
                 <ArrowLeft size={18} />
@@ -437,10 +435,7 @@ const SkillAssessment = () => {
         />
         <nav className={styles.nav}>
           <div className={styles.navContent}>
-            <div className={styles.logo} onClick={() => navigate('/')}>
-              <Briefcase className={styles.logoIcon} />
-              <span className={styles.logoText}>SkillBridge</span>
-            </div>
+            <Logo variant="icon" onClick={() => navigate('/dashboard')} />
             <div className={styles.navRight}>
               <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
                 <ArrowLeft size={18} />
@@ -520,10 +515,7 @@ const SkillAssessment = () => {
       />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/')}>
-            <Briefcase className={styles.logoIcon} />
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
               <ArrowLeft size={18} />

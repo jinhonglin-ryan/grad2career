@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
-import { Briefcase, TrendingUp, BookOpen, Target, Sparkles, Users, Shield, ArrowRight, CheckCircle } from 'lucide-react';
+import { TrendingUp, BookOpen, Target, Sparkles, Users, Shield, ArrowRight, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Logo from '../components/Logo';
 import styles from './Home.module.css';
 
 interface ButtonProps {
@@ -51,12 +52,7 @@ const Home = () => {
       {/* Navigation */}
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo}>
-            <div className={styles.logoIconWrapper}>
-              <Briefcase className={styles.logoIcon} />
-            </div>
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" />
           <div className={styles.navLinks}>
             <Button variant="ghost" onClick={() => navigate('/login')}>
               Log In
@@ -335,10 +331,7 @@ const Home = () => {
         <div className={styles.footerContent}>
           <div className={styles.footerGrid}>
             <div className={styles.footerBrand}>
-              <div className={styles.footerLogoWrapper}>
-                <Briefcase className={styles.footerIcon} />
-                <span className={styles.footerLogo}>SkillBridge</span>
-              </div>
+              <Logo variant="full" className={styles.footerLogo} />
               <p className={styles.footerText}>
                 Empowering displaced workers with AI-driven career transition support.
                 Built with care for those seeking new opportunities.

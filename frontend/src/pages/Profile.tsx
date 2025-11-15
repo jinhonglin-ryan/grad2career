@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, User, Mail, Calendar, MapPin, Target, TrendingUp, BookOpen, Edit2, Save, X, CheckCircle2, Clock, DollarSign, ArrowLeft } from 'lucide-react';
+import { LogOut, User, Mail, Calendar, MapPin, Target, TrendingUp, BookOpen, Edit2, Save, X, CheckCircle2, Clock, DollarSign, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Logo from '../components/Logo';
 import styles from './Profile.module.css';
 
 interface FullProfile {
@@ -221,12 +222,7 @@ const Profile = () => {
     <div className={styles.container}>
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/dashboard')}>
-            <div className={styles.logoIconWrapper}>
-              <Briefcase className={styles.logoIcon} />
-            </div>
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.backButton}>
               <ArrowLeft size={18} />

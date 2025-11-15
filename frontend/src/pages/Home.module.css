@@ -2,7 +2,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: #F7F6F3; /* Sand 50 */
+  padding-top: 0; /* No padding-top needed, hero section handles it */
 }
 
 /* Navigation */
@@ -12,9 +13,9 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
   z-index: 100;
   animation: slideDown 0.5s ease-out;
 }
@@ -93,41 +94,45 @@
 }
 
 .primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563EB; /* Electric Blue 600 */
   color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  border-radius: 10px;
 }
 
 .primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  background: #1D4ED8; /* Darker blue on hover */
 }
 
 .ghost {
   background: transparent;
-  color: #4b5563;
+  color: #475569; /* Slate 600 */
 }
 
 .ghost:hover {
-  background: #f3f4f6;
-  color: #667eea;
+  background: #F1F5F9; /* Slate 100 */
+  color: #2563EB; /* Electric Blue 600 */
 }
 
 .outline {
   background: white;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: #2563EB; /* Electric Blue 600 */
+  border: 2px solid #2563EB;
+  border-radius: 10px;
 }
 
 .outline:hover {
-  background: #667eea;
+  background: #2563EB;
   color: white;
 }
 
 /* Hero Section */
 .hero {
-  padding: 10rem 2rem 6rem;
-  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+  padding: 8rem 2rem 6rem;
+  margin-top: 72px; /* Account for fixed nav */
+  background: linear-gradient(135deg, #F7F6F3 0%, #FFFFFF 100%); /* Sand 50 to White */
   position: relative;
   overflow: hidden;
 }
@@ -139,7 +144,7 @@
   right: 0;
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%); /* Electric Blue with low opacity */
   border-radius: 50%;
   animation: pulse 8s ease-in-out infinite;
 }
@@ -165,10 +170,10 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  background: rgba(14, 165, 165, 0.1); /* Teal 500 with opacity */
+  border: 1px solid rgba(14, 165, 165, 0.2);
   border-radius: 2rem;
-  color: #667eea;
+  color: #0EA5A5; /* Teal 500 */
   font-size: 0.875rem;
   font-weight: 600;
   margin-bottom: 1.5rem;
@@ -181,15 +186,16 @@
 
 .heroTitle {
   font-size: 3.75rem;
-  font-weight: 800;
-  color: #1f2937;
+  font-weight: 700;
+  color: #0F172A; /* Anthracite 900 */
   line-height: 1.1;
   margin-bottom: 1.5rem;
   animation: fadeInUp 1s ease-out;
+  letter-spacing: -0.02em;
 }
 
 .gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #0EA5A5 100%); /* Electric Blue to Teal */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -197,10 +203,11 @@
 
 .heroText {
   font-size: 1.25rem;
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   line-height: 1.8;
   margin-bottom: 2.5rem;
   animation: fadeInUp 1.2s ease-out;
+  font-weight: 400;
 }
 
 .heroButtons {
@@ -225,12 +232,12 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   font-size: 0.9375rem;
 }
 
 .heroStat svg {
-  color: #10b981;
+  color: #A3E635; /* Lime 400 - success/green energy */
 }
 
 @keyframes fadeInUp {
@@ -278,12 +285,12 @@
 }
 
 .floatingCard svg {
-  color: #667eea;
+  color: #2563EB; /* Electric Blue 600 */
 }
 
 .floatingCard span {
   font-weight: 600;
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
 }
 
 @keyframes float {
@@ -298,7 +305,7 @@
 /* Features Section */
 .features {
   padding: 6rem 2rem;
-  background: white;
+  background: #FFFFFF;
 }
 
 .sectionHeader {
@@ -310,14 +317,16 @@
 .sectionTitle {
   font-size: 2.75rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
   margin-bottom: 1rem;
+  letter-spacing: -0.02em;
 }
 
 .sectionSubtitle {
   font-size: 1.25rem;
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   line-height: 1.6;
+  font-weight: 400;
 }
 
 .featureGrid {
@@ -330,12 +339,13 @@
 
 .card {
   background: white;
-  border: 2px solid #f3f4f6;
-  border-radius: 1.5rem;
+  border: 2px solid #E2E8F0; /* Slate 200 */
+  border-radius: 16px; /* 16px radius as per design guide */
   padding: 2.5rem;
   transition: all 0.3s;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); /* Subtle elevation */
 }
 
 .card::before {
@@ -345,7 +355,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #0EA5A5 100%); /* Electric Blue to Teal */
   transform: scaleX(0);
   transition: transform 0.3s;
 }
@@ -356,14 +366,14 @@
 
 .card:hover {
   transform: translateY(-8px);
-  border-color: #e5e7eb;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  border-color: #CBD5E1; /* Slate 300 */
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
 }
 
 .featureIconWrapper {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  background: rgba(14, 165, 165, 0.1); /* Teal 500 with opacity */
   border-radius: 1rem;
   display: flex;
   align-items: center;
@@ -374,26 +384,28 @@
 .featureIcon {
   width: 2rem;
   height: 2rem;
-  color: #667eea;
+  color: #0EA5A5; /* Teal 500 */
 }
 
 .featureTitle {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
   margin-bottom: 1rem;
+  letter-spacing: -0.01em;
 }
 
 .featureText {
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   line-height: 1.7;
   margin-bottom: 1.5rem;
+  font-weight: 400;
 }
 
 .featureLink {
   background: none;
   border: none;
-  color: #667eea;
+  color: #2563EB; /* Electric Blue 600 */
   font-weight: 600;
   cursor: pointer;
   padding: 0;
@@ -407,7 +419,7 @@
 /* How It Works */
 .howItWorks {
   padding: 6rem 2rem;
-  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #F7F6F3 0%, #FFFFFF 100%); /* Sand 50 to White */
 }
 
 .stepsGrid {
@@ -426,7 +438,7 @@
   left: 20%;
   right: 20%;
   height: 2px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+  background: linear-gradient(90deg, #2563EB 0%, #0EA5A5 50%, #2563EB 100%); /* Electric Blue to Teal */
   z-index: 0;
 }
 
@@ -443,7 +455,7 @@
   width: 80px;
   height: 80px;
   margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563EB; /* Electric Blue 600 */
   color: white;
   border-radius: 50%;
   display: flex;
@@ -451,7 +463,7 @@
   justify-content: center;
   font-size: 2rem;
   font-weight: 700;
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
   position: relative;
 }
 
@@ -460,7 +472,7 @@
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  background: rgba(37, 99, 235, 0.2); /* Electric Blue with opacity */
   z-index: -1;
 }
 
@@ -471,20 +483,22 @@
 .stepTitle {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
   margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
 }
 
 .stepText {
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
   line-height: 1.7;
   font-size: 1.0625rem;
+  font-weight: 400;
 }
 
 /* Testimonials */
 .testimonials {
   padding: 6rem 2rem;
-  background: white;
+  background: #FFFFFF;
 }
 
 .testimonialGrid {
@@ -496,23 +510,24 @@
 }
 
 .testimonialCard {
-  background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
-  border: 2px solid #f3f4f6;
-  border-radius: 1.5rem;
+  background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%); /* Slate 50 to White */
+  border: 2px solid #E2E8F0; /* Slate 200 */
+  border-radius: 16px;
   padding: 2.5rem;
   position: relative;
   transition: all 0.3s;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .testimonialCard:hover {
   transform: translateY(-8px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
-  border-color: #e5e7eb;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+  border-color: #CBD5E1; /* Slate 300 */
 }
 
 .quote {
   font-size: 5rem;
-  color: #667eea;
+  color: #2563EB; /* Electric Blue 600 */
   opacity: 0.2;
   font-family: Georgia, serif;
   line-height: 1;
@@ -522,12 +537,13 @@
 }
 
 .testimonialText {
-  color: #4b5563;
+  color: #475569; /* Slate 600 */
   line-height: 1.7;
   margin-bottom: 2rem;
   font-size: 1.0625rem;
   position: relative;
   z-index: 1;
+  font-weight: 400;
 }
 
 .testimonialAuthor {
@@ -539,7 +555,7 @@
 .authorAvatar {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563EB; /* Electric Blue 600 */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -551,19 +567,20 @@
 
 .authorName {
   font-weight: 600;
-  color: #1f2937;
+  color: #0F172A; /* Anthracite 900 */
   margin-bottom: 0.25rem;
 }
 
 .authorTitle {
   font-size: 0.875rem;
-  color: #6b7280;
+  color: #475569; /* Slate 600 */
+  font-weight: 400;
 }
 
 /* Stats Section */
 .stats {
   padding: 6rem 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #0EA5A5 100%); /* Electric Blue to Teal */
   position: relative;
   overflow: hidden;
 }
@@ -632,7 +649,7 @@
 /* CTA Section */
 .cta {
   padding: 6rem 2rem;
-  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  background: #0F172A; /* Anthracite 900 */
   position: relative;
   overflow: hidden;
 }
@@ -644,7 +661,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: url('data:image/svg+xml,<svg width="60" height="60" xmlns="http://www.w3.org/2000/svg"><circle cx="30" cy="30" r="1" fill="rgba(102, 126, 234, 0.3)"/></svg>');
+  background: url('data:image/svg+xml,<svg width="60" height="60" xmlns="http://www.w3.org/2000/svg"><circle cx="30" cy="30" r="1" fill="rgba(37, 99, 235, 0.3)"/></svg>');
   opacity: 0.3;
 }
 
@@ -658,28 +675,31 @@
 
 .ctaTitle {
   font-size: 3rem;
-  font-weight: 800;
+  font-weight: 700;
   color: white;
   margin-bottom: 1.5rem;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .ctaText {
   font-size: 1.25rem;
-  color: #d1d5db;
+  color: #CBD5E1; /* Slate 300 */
   margin-bottom: 2.5rem;
   line-height: 1.7;
+  font-weight: 400;
 }
 
 .ctaButton {
   padding: 1.25rem 3rem;
   font-size: 1.25rem;
   background: white;
-  color: #667eea;
+  color: #2563EB; /* Electric Blue 600 */
+  border-radius: 10px;
 }
 
 .ctaButton:hover {
-  background: #f9fafb;
+  background: #F7F6F3; /* Sand 50 */
 }
 
 .ctaSubtext {
@@ -690,7 +710,7 @@
 
 /* Footer */
 .footer {
-  background: #1f2937;
+  background: #0F172A; /* Anthracite 900 */
   color: white;
   padding: 4rem 2rem 2rem;
 }
@@ -713,22 +733,12 @@
   gap: 1rem;
 }
 
-.footerLogoWrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.footerIcon {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: #667eea;
-}
-
 .footerLogo {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: white;
+  margin-bottom: 1rem;
+}
+
+.footerLogo img {
+  filter: brightness(0) invert(1); /* Make logo white for dark footer */
 }
 
 .footerText {
@@ -760,7 +770,7 @@
 }
 
 .footerLinks li:hover {
-  color: #667eea;
+  color: #2563EB; /* Electric Blue 600 */
   padding-left: 0.5rem;
 }
 

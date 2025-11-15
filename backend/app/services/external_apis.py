@@ -54,9 +54,9 @@ def careeronestop_search_training(
                            "Register at https://www.careeronestop.org/Developers/WebAPI/registration.aspx"
         }
 
-    # Use API key as userId if not provided
-    # Note: CareerOneStop API uses the API key as the userId in the URL path
-    userId = user_id or api_key
+    # Use provided user_id, or settings user_id, or API key as fallback
+    # CareerOneStop API requires userId in URL path (may be separate from API token)
+    userId = user_id or settings.careeronestop_user_id or api_key
     
     # CareerOneStop Training Finder API endpoint
     # Format: /v1/training/{userId}/{occupation}/{location}

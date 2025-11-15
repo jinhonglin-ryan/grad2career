@@ -2,7 +2,7 @@
 API Routes for Conversational Skill Assessment
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -285,6 +285,49 @@ async def get_session(session_id: str, user_id: str = "web"):
         raise HTTPException(status_code=403, detail=str(e))
     except KeyError:
         raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.delete("/clear-assessment")
+async def clear_assessment(request: Request):
+    """
+    Clear user's previous assessment data to allow retaking.
+    This deletes assessment sessions and clears skill profile data.
+    """
+    # Get user from JWT token
+    from app.api.routes.auth import verify_jwt_token
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # Delete all assessment sessions for this user
+        supabase.table('assessment_sessions').delete().eq('user_id', user_id).execute()
+        
+        # Clear skill profile data in user_profiles
+        # Keep the profile record but clear skills-related fields
+        supabase.table('user_profiles').update({
+            'skills': None,
+            'tools': None,
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('user_id', user_id).execute()
+        
+        # Also clear any mining questionnaire responses
+        supabase.table('mining_questionnaire_responses').delete().eq('user_id', user_id).execute()
+        
+        return {
+            "message": "Assessment data cleared successfully",
+            "user_id": user_id
+        }
+    except Exception as e:
+        logging.error(f"Error clearing assessment data: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear assessment data: {str(e)}")
 
 
 @router.delete("/assess/session/{session_id}")

@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  background: #f9fafb;
+  background: #F7F6F3; /* Sand 50 */
   padding-top: 72px; /* Match nav bar height exactly */
   position: relative;
   z-index: 0; /* Lower than nav bar */
@@ -12,9 +12,9 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
   z-index: 1000; /* Very high z-index to ensure it's always on top */
   display: block; /* Ensure it's displayed */
   visibility: visible; /* Ensure it's visible */

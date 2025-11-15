@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import Logo from '../components/Logo';
 import styles from './MiningQuestionnaire.module.css';
 
 interface QuestionnaireData {
@@ -160,9 +161,7 @@ const MiningQuestionnaire = () => {
     <div className={styles.container}>
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/dashboard')}>
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.backButton}>
               <ArrowLeft size={18} />

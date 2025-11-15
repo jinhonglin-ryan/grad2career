@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, Edit2, HardHat } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
 
 interface SkillProfile {
@@ -59,12 +60,6 @@ const Dashboard = () => {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [fullProfile, setFullProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [editData, setEditData] = useState<{
-    previous_job_title?: string;
-    mining_type?: string;
-    years_mining_experience?: number;
-  }>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,12 +77,6 @@ const Dashboard = () => {
         try {
           const profileResponse = await api.get('/auth/user/profile');
           setFullProfile(profileResponse.data);
-          // Initialize edit data (only mining-specific fields for dashboard)
-          setEditData({
-            previous_job_title: profileResponse.data.profile?.previous_job_title || '',
-            mining_type: profileResponse.data.profile?.mining_type || '',
-            years_mining_experience: profileResponse.data.profile?.years_mining_experience || undefined,
-          });
         } catch (error) {
           console.error('Error fetching full profile:', error);
         }
@@ -102,31 +91,6 @@ const Dashboard = () => {
     fetchData();
   }, [user?.id]);
 
-  const handleSaveEdit = async (section: string) => {
-    try {
-      await api.put('/auth/user/profile', editData);
-      toast.success('Profile updated successfully!');
-      
-      // Refresh profile data
-      const profileResponse = await api.get('/auth/user/profile');
-      setFullProfile(profileResponse.data);
-      setEditingSection(null);
-    } catch (error: any) {
-      console.error('Error updating profile:', error);
-      toast.error(error.response?.data?.detail || 'Failed to update profile');
-    }
-  };
-
-  const handleCancelEdit = () => {
-    if (fullProfile) {
-      setEditData({
-        previous_job_title: fullProfile.profile?.previous_job_title || '',
-        mining_type: fullProfile.profile?.mining_type || '',
-        years_mining_experience: fullProfile.profile?.years_mining_experience || undefined,
-      });
-    }
-    setEditingSection(null);
-  };
 
   return (
     <div className={styles.container}>
@@ -144,12 +108,7 @@ const Dashboard = () => {
       />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/')}>
-            <div className={styles.logoIconWrapper}>
-              <Briefcase className={styles.logoIcon} />
-            </div>
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <div className={styles.userInfo} onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
               <div className={styles.userAvatar}>
@@ -365,15 +324,6 @@ const Dashboard = () => {
           <div className={styles.profileCard}>
             <div className={styles.cardHeader}>
               <h2>Your Mining Profile</h2>
-              {!editingSection && (
-                <button 
-                  className={styles.editIconButton}
-                  onClick={() => setEditingSection('mining')}
-                  title="Edit mining information"
-                >
-                  <Edit2 size={18} />
-                </button>
-              )}
             </div>
             <div className={styles.profileHeader}>
               <div className={styles.profileAvatar}>
@@ -386,80 +336,32 @@ const Dashboard = () => {
             </div>
 
             {/* Mining-Specific Information */}
-            {(fullProfile?.profile?.previous_job_title || fullProfile?.profile?.mining_type || editingSection === 'mining') && (
+            {(fullProfile?.profile?.previous_job_title || fullProfile?.profile?.mining_type || fullProfile?.profile?.years_mining_experience) && (
               <div className={styles.miningInfoSection}>
                 <div className={styles.sectionTitle}>
                   <HardHat size={20} />
                   <h3>Mining Background</h3>
                 </div>
-                {editingSection === 'mining' ? (
-                  <div className={styles.editForm}>
-                    <div className={styles.formGroup}>
-                      <label>Previous Mining Job Title</label>
-                      <input
-                        type="text"
-                        value={editData.previous_job_title || ''}
-                        onChange={(e) => setEditData({ ...editData, previous_job_title: e.target.value })}
-                        placeholder="e.g., Continuous Miner Operator"
-                        className={styles.input}
-                      />
+                <div className={styles.infoGrid}>
+                  {fullProfile?.profile?.previous_job_title && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Previous Job</span>
+                      <span className={styles.value}>{fullProfile.profile.previous_job_title}</span>
                     </div>
-                    <div className={styles.formGroup}>
-                      <label>Mining Type</label>
-                      <select
-                        value={editData.mining_type || ''}
-                        onChange={(e) => setEditData({ ...editData, mining_type: e.target.value })}
-                        className={styles.input}
-                      >
-                        <option value="">Select type</option>
-                        <option value="underground">Underground</option>
-                        <option value="surface">Surface</option>
-                        <option value="both">Both</option>
-                      </select>
+                  )}
+                  {fullProfile?.profile?.mining_type && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Mining Type</span>
+                      <span className={styles.value}>{fullProfile.profile.mining_type}</span>
                     </div>
-                    <div className={styles.formGroup}>
-                      <label>Years of Experience</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        value={editData.years_mining_experience || ''}
-                        onChange={(e) => setEditData({ ...editData, years_mining_experience: parseInt(e.target.value) || undefined })}
-                        placeholder="Years"
-                        className={styles.input}
-                      />
+                  )}
+                  {fullProfile?.profile?.years_mining_experience && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Experience</span>
+                      <span className={styles.value}>{fullProfile.profile.years_mining_experience} years</span>
                     </div>
-                    <div className={styles.editActions}>
-                      <button onClick={() => handleSaveEdit('mining')} className={styles.saveButton}>
-                        Save
-                      </button>
-                      <button onClick={handleCancelEdit} className={styles.cancelButton}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.infoGrid}>
-                    {fullProfile?.profile?.previous_job_title && (
-                      <div className={styles.infoItem}>
-                        <span className={styles.label}>Previous Job</span>
-                        <span className={styles.value}>{fullProfile.profile.previous_job_title}</span>
-                      </div>
-                    )}
-                    {fullProfile?.profile?.mining_type && (
-                      <div className={styles.infoItem}>
-                        <span className={styles.label}>Mining Type</span>
-                        <span className={styles.value}>{fullProfile.profile.mining_type}</span>
-                      </div>
-                    )}
-                    {fullProfile?.profile?.years_mining_experience && (
-                      <div className={styles.infoItem}>
-                        <span className={styles.label}>Experience</span>
-                        <span className={styles.value}>{fullProfile.profile.years_mining_experience} years</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
@@ -525,11 +427,22 @@ const Dashboard = () => {
               <button 
                 type="button"
                 className={styles.secondaryButton} 
-                onClick={() => {
+                onClick={async () => {
+                  // Clear previous assessment data when retaking
+                  if (skillProfile?.has_assessment) {
+                    try {
+                      // Call backend to clear assessment data
+                      await api.delete('/skills/clear-assessment');
+                      toast.info('Previous assessment cleared. Starting new assessment...');
+                    } catch (error) {
+                      console.error('Error clearing assessment:', error);
+                      // Continue to assessment page anyway
+                    }
+                  }
                   navigate('/assessment');
                 }}
               >
-                {skillProfile?.has_assessment ? 'Update Assessment' : 'Start Assessment'}
+                {skillProfile?.has_assessment ? 'Retake Assessment' : 'Start Assessment'}
               </button>
             </div>
           </div>

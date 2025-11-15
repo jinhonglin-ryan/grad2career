@@ -1,0 +1,35 @@
+.logo {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.logo:hover {
+  opacity: 0.8;
+}
+
+.logoFull {
+  height: 40px;
+  width: auto;
+}
+
+.logoIcon {
+  height: 40px;
+  width: 40px;
+}
+
+@media (max-width: 768px) {
+  .logoFull {
+    height: 32px;
+  }
+  
+  .logoIcon {
+    height: 32px;
+    width: 32px;
+  }
+}
+
+
+
+

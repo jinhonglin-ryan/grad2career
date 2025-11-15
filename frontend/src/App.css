@@ -1,15 +1,24 @@
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #F7F6F3; /* Sand 50 */
+  color: #0F172A; /* Anthracite 900 */
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 code {
@@ -21,9 +30,38 @@ button {
   border: none;
   outline: none;
   font-family: inherit;
+  font-weight: 500;
 }
 
 a {
   text-decoration: none;
   color: inherit;
+}
+
+/* Typography utilities */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: #0F172A; /* Anthracite 900 */
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.5rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 2rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+/* Tabular numerals for numeric UI */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
 }
