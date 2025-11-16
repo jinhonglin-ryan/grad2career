@@ -43,7 +43,7 @@ interface FullProfile {
     career_goals?: string;
   } | null;
   metadata: {
-    current_zip_code?: string;
+    state?: string;
     travel_constraint?: string;
     budget_constraint?: string;
     scheduling?: string;

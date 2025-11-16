@@ -153,7 +153,7 @@ Stores user account information and authentication data.
 ```json
 {
   "onboarding_completed": true,
-  "current_zip_code": "12345",
+  "state": "west_virginia",
   "travel_constraint": "none",
   "budget_constraint": "low",
   "scheduling": "flexible",

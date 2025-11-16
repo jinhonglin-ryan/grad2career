@@ -7,7 +7,7 @@ import styles from './OnboardingPage.module.css';
 
 interface FormData {
   // Screen 1: Logistical Constraints
-  currentZipCode: string;
+  state: string;
   travelConstraint: string;
   budgetConstraint: string;
   scheduling: string;
@@ -47,7 +47,7 @@ const OnboardingPage = () => {
   }, [navigate]);
 
   const [formData, setFormData] = useState<FormData>({
-    currentZipCode: '',
+    state: '',
     travelConstraint: '',
     budgetConstraint: '',
     scheduling: '',
@@ -61,14 +61,17 @@ const OnboardingPage = () => {
   // Define all questions in order
   const questions: Question[] = [
     {
-      id: 'zipCode',
-      field: 'currentZipCode',
-      label: 'Current Zip Code',
+      id: 'state',
+      field: 'state',
+      label: 'Which state are you located in?',
       icon: <MapPin size={24} />,
-      type: 'input',
-      placeholder: '12345',
+      type: 'radio',
       required: true,
-      hint: '5-digit zip code required',
+      options: [
+        { value: 'west_virginia', label: 'West Virginia' },
+        { value: 'kentucky', label: 'Kentucky' },
+        { value: 'pennsylvania', label: 'Pennsylvania' },
+      ],
     },
     {
       id: 'travel',
@@ -219,10 +222,6 @@ const OnboardingPage = () => {
     const value = formData[currentQuestion.field];
     
     if (currentQuestion.type === 'input') {
-      // For zip code, check 5 digits
-      if (currentQuestion.field === 'currentZipCode') {
-        return typeof value === 'string' && value.trim().length === 5 && /^\d{5}$/.test(value);
-      }
       return typeof value === 'string' && value.trim().length > 0;
     } else {
       // For radio buttons, check if a value is selected
@@ -310,14 +309,7 @@ const OnboardingPage = () => {
                 <input
                   type="text"
                   value={getQuestionValue() as string}
-                  onChange={(e) => {
-                    if (currentQuestion.field === 'currentZipCode') {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 5);
-                      handleValueChange(value);
-                    } else {
-                      handleValueChange(e.target.value);
-                    }
-                  }}
+                  onChange={(e) => handleValueChange(e.target.value)}
                   placeholder={currentQuestion.placeholder || 'Enter your answer...'}
                   className={styles.questionInput}
                   autoFocus

@@ -30,7 +30,7 @@ interface FullProfile {
     updated_at?: string;
   } | null;
   metadata: {
-    current_zip_code?: string;
+    state?: string;
     travel_constraint?: string;
     budget_constraint?: string;
     scheduling?: string;
@@ -57,7 +57,7 @@ const Profile = () => {
     previous_job_title?: string;
     mining_type?: string;
     years_mining_experience?: number;
-    current_zip_code?: string;
+    state?: string;
     travel_constraint?: string;
     budget_constraint?: string;
     scheduling?: string;
@@ -82,7 +82,7 @@ const Profile = () => {
           previous_job_title: response.data.profile?.previous_job_title || '',
           mining_type: response.data.profile?.mining_type || '',
           years_mining_experience: response.data.profile?.years_mining_experience || undefined,
-          current_zip_code: response.data.metadata?.current_zip_code || '',
+          state: response.data.metadata?.state || '',
           travel_constraint: response.data.metadata?.travel_constraint || '',
           budget_constraint: response.data.metadata?.budget_constraint || '',
           scheduling: response.data.metadata?.scheduling || '',
@@ -113,7 +113,7 @@ const Profile = () => {
         previous_job_title: response.data.profile?.previous_job_title || '',
         mining_type: response.data.profile?.mining_type || '',
         years_mining_experience: response.data.profile?.years_mining_experience || undefined,
-        current_zip_code: response.data.metadata?.current_zip_code || '',
+        state: response.data.metadata?.state || '',
         travel_constraint: response.data.metadata?.travel_constraint || '',
         budget_constraint: response.data.metadata?.budget_constraint || '',
         scheduling: response.data.metadata?.scheduling || '',
@@ -149,7 +149,7 @@ const Profile = () => {
         previous_job_title: fullProfile.profile?.previous_job_title || '',
         mining_type: fullProfile.profile?.mining_type || '',
         years_mining_experience: fullProfile.profile?.years_mining_experience || undefined,
-        current_zip_code: fullProfile.metadata?.current_zip_code || '',
+        state: fullProfile.metadata?.state || '',
         travel_constraint: fullProfile.metadata?.travel_constraint || '',
         budget_constraint: fullProfile.metadata?.budget_constraint || '',
         scheduling: fullProfile.metadata?.scheduling || '',
@@ -198,6 +198,15 @@ const Profile = () => {
     if (value.includes('earnings')) return 'Higher long-term earnings';
     if (value.includes('stable')) return 'Career change to a stable industry';
     return value;
+  };
+
+  const getStateLabel = (value?: string) => {
+    const map: Record<string, string> = {
+      'west_virginia': 'West Virginia',
+      'kentucky': 'Kentucky',
+      'pennsylvania': 'Pennsylvania',
+    };
+    return map[value || ''] || value || 'Not specified';
   };
 
   if (loading) {
@@ -488,14 +497,17 @@ const Profile = () => {
             {editing ? (
               <div className={styles.editGrid}>
                 <div className={styles.fieldGroup}>
-                  <label className={styles.label}>Zip Code</label>
-                  <input
-                    type="text"
-                    value={editData.current_zip_code || ''}
-                    onChange={(e) => setEditData({ ...editData, current_zip_code: e.target.value })}
-                    placeholder="Enter zip code"
+                  <label className={styles.label}>State</label>
+                  <select
+                    value={editData.state || ''}
+                    onChange={(e) => setEditData({ ...editData, state: e.target.value })}
                     className={styles.input}
-                  />
+                  >
+                    <option value="">Select state</option>
+                    <option value="west_virginia">West Virginia</option>
+                    <option value="kentucky">Kentucky</option>
+                    <option value="pennsylvania">Pennsylvania</option>
+                  </select>
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.label}>Travel Constraint</label>
@@ -547,10 +559,10 @@ const Profile = () => {
               </div>
             ) : (
               <div className={styles.infoGrid}>
-                {metadata.current_zip_code && (
+                {metadata.state && (
                   <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>Zip Code</span>
-                    <span className={styles.infoValue}>{metadata.current_zip_code}</span>
+                    <span className={styles.infoLabel}>State</span>
+                    <span className={styles.infoValue}>{getStateLabel(metadata.state)}</span>
                   </div>
                 )}
                 {metadata.travel_constraint && (
@@ -587,7 +599,7 @@ const Profile = () => {
                     <span className={styles.infoValue}>{metadata.weekly_hours_constraint}</span>
                   </div>
                 )}
-                {!metadata.current_zip_code && !metadata.travel_constraint && 
+                {!metadata.state && !metadata.travel_constraint && 
                  !metadata.budget_constraint && !metadata.scheduling && 
                  !metadata.weekly_hours_constraint && (
                   <div className={styles.infoItem}>
