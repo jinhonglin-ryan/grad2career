@@ -8,6 +8,7 @@ import SkillAssessment from './pages/SkillAssessment';
 import MiningQuestionnaire from './pages/MiningQuestionnaire';
 import CareerMatch from './pages/CareerMatch';
 import LearningPath from './pages/LearningPath';
+import TrainingPrograms from './pages/TrainingPrograms';
 import VideoDetail from './pages/VideoDetail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingPage from './pages/OnboardingPage';
@@ -31,6 +32,7 @@ function App() {
         <Route path="/assessment/questionnaire" element={<MiningQuestionnaire />} />
         <Route path="/careers" element={<CareerMatch />} />
         <Route path="/learning" element={<LearningPath />} />
+        <Route path="/training" element={<TrainingPrograms />} />
         <Route path="/learning/video/:videoId" element={<VideoDetail />} />
       </Routes>
     </ConfigProvider>

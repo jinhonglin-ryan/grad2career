@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
@@ -243,6 +243,24 @@ const Dashboard = () => {
               <div className={styles.cardMeta}>
                 <CheckCircle2 size={16} />
                 <span>Personalized plan</span>
+              </div>
+            </div>
+            <ArrowRight className={styles.cardArrow} size={24} />
+          </div>
+
+          <div
+            className={`${styles.actionCard} ${styles.quaternary}`}
+            onClick={() => navigate('/training')}
+          >
+            <div className={styles.cardIconWrapper}>
+              <Zap size={28} />
+            </div>
+            <div className={styles.cardContent}>
+              <h3>Renewable Energy Training</h3>
+              <p>Discover coal miner transition programs and renewable energy training in your state</p>
+              <div className={styles.cardMeta}>
+                <CheckCircle2 size={16} />
+                <span>Coal miner specific programs</span>
               </div>
             </div>
             <ArrowRight className={styles.cardArrow} size={24} />
