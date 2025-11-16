@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp, Target, Briefcase } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
@@ -455,42 +455,47 @@ const SkillAssessment = () => {
             <div className={styles.completedHeader}>
               <CheckCircle size={48} className={styles.successIcon} />
               <h1>Assessment Complete</h1>
-              <p>Your skills have been identified. You can update your assessment or explore careers.</p>
+              <p>We've identified {skillProfile.extracted_skills.length} transferable skills from your experience</p>
             </div>
 
             <div className={styles.completedActions}>
+              <button 
+                onClick={() => navigate('/careers')}
+                className={styles.primaryButton}
+              >
+                <Briefcase size={18} />
+                Explore Career Matches
+              </button>
               <button 
                 onClick={startQuestionnaire}
                 className={styles.updateButton}
               >
                 <RefreshCw size={18} />
-                Update with Questionnaire
+                Update Assessment
               </button>
               <button 
                 onClick={startChatAssessment}
                 className={styles.updateButton}
               >
                 <Sparkles size={18} />
-                Update with Chat
-              </button>
-              <button 
-                onClick={() => navigate('/careers')}
-                className={styles.primaryButton}
-              >
-                <Briefcase size={18} />
-                Explore Careers
+                Start New Chat
               </button>
             </div>
 
-            <div className={styles.skillsDisplay}>
-              <h2>Your Identified Skills ({skillProfile.extracted_skills.length})</h2>
-              <div className={styles.skillGrid}>
-                {skillProfile.extracted_skills.map((skill, index) => (
-                  <div key={index} className={styles.skillCard}>
-                    <div className={styles.skillCategory}>{skill.category}</div>
-                    <div className={styles.skillPhrase}>{skill.user_phrase}</div>
-                  </div>
-                ))}
+            <div className={styles.skillsDisplaySection}>
+              <div className={styles.skillsHeader}>
+                <h2>Your Identified Skills</h2>
+                <span className={styles.skillCount}>{skillProfile.extracted_skills.length} skills</span>
+              </div>
+              <div className={styles.skillsScrollContainer}>
+                <div className={styles.skillGrid}>
+                  {skillProfile.extracted_skills.map((skill, index) => (
+                    <div key={index} className={styles.skillCardCompact}>
+                      <div className={styles.skillCategory}>{skill.category}</div>
+                      <div className={styles.skillPhrase}>{skill.user_phrase}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

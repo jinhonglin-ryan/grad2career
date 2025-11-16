@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   background: #F7F6F3; /* Sand 50 */
-  padding-top: 72px; /* Match nav bar height exactly */
+  padding-top: 88px; /* Nav height (72px) + spacing (16px) */
   position: relative;
   z-index: 0; /* Lower than nav bar */
 }
@@ -1252,23 +1252,37 @@
 
 /* Completed View Styles */
 .completedView {
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 2rem;
 }
 
 .completedHeader {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 2.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .successIcon {
   color: #10b981;
   margin-bottom: 1rem;
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 .completedHeader h1 {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #1f2937;
   margin-bottom: 0.5rem;
@@ -1280,22 +1294,22 @@
 }
 
 .completedActions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
   gap: 1rem;
-  justify-content: center;
-  margin-bottom: 3rem;
-  flex-wrap: wrap;
+  margin-bottom: 2rem;
 }
 
 .updateButton,
 .primaryButton {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.875rem 1.5rem;
+  padding: 1rem 1.5rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1310,36 +1324,123 @@
 .updateButton:hover {
   background: #f5f7ff;
   transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
 }
 
 .primaryButton {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .primaryButton:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.skillsDisplay {
+.skillsDisplaySection {
   background: white;
   border-radius: 1rem;
-  padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.skillsDisplay h2 {
-  font-size: 1.5rem;
+.skillsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.skillsHeader h2 {
+  font-size: 1.25rem;
   font-weight: 700;
   color: #1f2937;
-  margin-bottom: 1.5rem;
+  margin: 0;
+}
+
+.skillCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.875rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 2rem;
+  color: #667eea;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.skillsScrollContainer {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.skillsScrollContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .skillGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.skillCardCompact {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  transition: all 0.2s;
+}
+
+.skillCardCompact:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
+}
+
+.skillCardCompact .skillCategory {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.375rem;
+}
+
+.skillCardCompact .skillPhrase {
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .completedActions {
+    grid-template-columns: 1fr;
+  }
+
+  .skillGrid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1348,13 +1449,33 @@
   }
 
   .completedActions {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .updateButton,
   .primaryButton {
     width: 100%;
     justify-content: center;
+  }
+
+  .skillGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .completedView {
+    padding: 1rem;
+  }
+
+  .completedHeader {
+    padding: 1.5rem;
+  }
+
+  .completedHeader h1 {
+    font-size: 1.75rem;
+  }
+
+  .skillsScrollContainer {
+    max-height: 300px;
   }
 }
 

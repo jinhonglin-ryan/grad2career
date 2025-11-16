@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   background: #F7F6F3; /* Sand 50 */
-  padding-top: 72px; /* Account for fixed nav */
+  padding-top: 88px; /* Nav height (72px) + spacing (16px) */
 }
 
 .nav {

@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   background: #F7F6F3; /* Sand 50 */
-  padding-top: 72px; /* Account for fixed nav */
+  padding-top: 88px; /* Nav height (72px) + spacing (16px) */
 }
 
 .nav {
@@ -10,15 +10,14 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
+  background: rgba(247, 246, 243, 0.95);
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
-  z-index: 100;
-  padding: 0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  z-index: 1000;
 }
 
 .navContent {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 2rem;
   height: 100%;
@@ -40,58 +39,80 @@
   gap: 1rem;
 }
 
-.backButton,
-.logoutButton {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 8px;
-  background: #f3f4f6;
-  color: #374151;
-  cursor: pointer;
+.backButton {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
   font-size: 0.9rem;
-  transition: background 0.2s;
 }
 
-.backButton:hover,
+.backButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.logoutButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
 .logoutButton:hover {
-  background: #e5e7eb;
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 .userName {
-  color: #374151;
+  color: #4b5563;
+  font-weight: 500;
   font-size: 0.9rem;
 }
 
 .mainContent {
-  max-width: 800px;
+  max-width: 900px;
   margin: 2rem auto;
   padding: 2rem;
 }
 
 .header {
   text-align: center;
-  color: white;
+  color: #1f2937;
   margin-bottom: 2rem;
 }
 
 .header h1 {
-  font-size: 2.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
   margin-bottom: 0.5rem;
 }
 
 .header p {
-  font-size: 1.1rem;
-  opacity: 0.9;
+  font-size: 1.125rem;
+  color: #6b7280;
   margin-bottom: 1.5rem;
 }
 
 .progressBar {
   width: 100%;
   height: 8px;
-  background: rgba(255, 255, 255, 0.3);
+  background: #e5e7eb;
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 1rem;
@@ -99,26 +120,30 @@
 
 .progressFill {
   height: 100%;
-  background: white;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
   transition: width 0.3s ease;
+  position: relative;
 }
 
 .stepIndicator {
-  font-size: 0.9rem;
-  opacity: 0.8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #667eea;
 }
 
 .formContainer {
   background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
 }
 
 .step h2 {
   color: #1f2937;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
+  font-weight: 700;
 }
 
 .formGroup {
@@ -129,23 +154,27 @@
   display: block;
   margin-bottom: 0.5rem;
   color: #374151;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .input,
 .select {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  color: #1f2937;
+  background: white;
 }
 
 .input:focus,
 .select:focus {
   outline: none;
   border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .radioGroup {
@@ -157,20 +186,32 @@
 .radioLabel {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: background 0.2s;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s;
+  background: white;
+  color: #374151;
+  font-weight: 500;
 }
 
 .radioLabel:hover {
-  background: #f9fafb;
+  border-color: #667eea;
+  background: #f5f7ff;
 }
 
 .radioLabel input[type="radio"] {
   margin: 0;
   cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #667eea;
+}
+
+.radioLabel input[type="radio"]:checked {
+  accent-color: #667eea;
 }
 
 .checkboxGroup {
@@ -183,37 +224,54 @@
 .checkboxLabel {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: background 0.2s;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s;
+  background: white;
+  color: #374151;
+  font-weight: 500;
 }
 
 .checkboxLabel:hover {
-  background: #f9fafb;
+  border-color: #667eea;
+  background: #f5f7ff;
 }
 
 .checkboxLabel input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #667eea;
 }
 
 .reviewSection {
   margin-top: 2rem;
-  padding: 1.5rem;
-  background: #f9fafb;
-  border-radius: 8px;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(102, 126, 234, 0.1);
 }
 
 .reviewSection h3 {
   margin-bottom: 1rem;
   color: #1f2937;
+  font-weight: 700;
+  font-size: 1.125rem;
 }
 
 .reviewItem {
   margin-bottom: 0.75rem;
   color: #374151;
+  padding: 0.5rem 0;
+}
+
+.reviewItem strong {
+  color: #1f2937;
+  font-weight: 600;
 }
 
 .buttonGroup {
@@ -226,42 +284,47 @@
 .nextButton,
 .submitButton {
   flex: 1;
-  padding: 1rem 2rem;
+  padding: 0.875rem 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .nextButton:hover:not(:disabled),
 .submitButton:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .nextButton:disabled,
 .submitButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
-.backButton {
-  padding: 1rem 2rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: none;
-  border-radius: 8px;
+.buttonGroup .backButton {
+  padding: 0.875rem 1.5rem;
+  background: white;
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
   font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
-.backButton:hover {
-  background: #e5e7eb;
+.buttonGroup .backButton:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
@@ -274,7 +337,29 @@
   }
 
   .header h1 {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .header p {
+    font-size: 1rem;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+  }
+
+  .nextButton,
+  .submitButton,
+  .buttonGroup .backButton {
+    width: 100%;
+  }
+
+  .navRight {
+    gap: 0.5rem;
+  }
+
+  .userName {
+    display: none;
   }
 }
 

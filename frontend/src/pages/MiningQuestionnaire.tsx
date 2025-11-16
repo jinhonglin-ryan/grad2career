@@ -165,7 +165,7 @@ const MiningQuestionnaire = () => {
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.backButton}>
               <ArrowLeft size={18} />
-              Back
+              Back to Dashboard
             </button>
             <span className={styles.userName}>{user?.name || user?.email}</span>
             <button onClick={logout} className={styles.logoutButton}>
@@ -454,7 +454,7 @@ const MiningQuestionnaire = () => {
           <div className={styles.buttonGroup}>
             {currentStep > 1 && (
               <button onClick={handleBack} className={styles.backButton}>
-                Back
+                ← Back
               </button>
             )}
             {currentStep < totalSteps ? (
@@ -463,7 +463,7 @@ const MiningQuestionnaire = () => {
                 className={styles.nextButton}
                 disabled={!canProceed()}
               >
-                Next
+                Next →
               </button>
             ) : (
               <button 
@@ -471,7 +471,7 @@ const MiningQuestionnaire = () => {
                 className={styles.submitButton}
                 disabled={loading || !canProceed()}
               >
-                {loading ? 'Submitting...' : 'Submit Assessment'}
+                {loading ? 'Submitting...' : '✓ Submit Assessment'}
               </button>
             )}
           </div>
