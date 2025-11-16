@@ -9,7 +9,6 @@ import {
   Clock, 
   DollarSign, 
   ExternalLink,
-  Search,
   Filter,
   AlertCircle,
   CheckCircle2,
@@ -58,7 +57,6 @@ const TrainingPrograms = () => {
   const [data, setData] = useState<TrainingRecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'coal_miner' | 'renewable'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchTrainingPrograms();
@@ -91,17 +89,6 @@ const TrainingPrograms = () => {
     }
   };
 
-  const filterPrograms = (programs: TrainingProgram[]) => {
-    if (!searchTerm) return programs;
-    
-    const term = searchTerm.toLowerCase();
-    return programs.filter(program => 
-      program.program_name.toLowerCase().includes(term) ||
-      program.provider.toLowerCase().includes(term) ||
-      program.description?.toLowerCase().includes(term)
-    );
-  };
-
   const getDisplayedPrograms = () => {
     if (!data) return [];
     
@@ -115,7 +102,7 @@ const TrainingPrograms = () => {
       programs = data.general_renewable_programs;
     }
     
-    return filterPrograms(programs);
+    return programs;
   };
 
   const getMatchScoreColor = (score: number) => {
@@ -240,27 +227,8 @@ const TrainingPrograms = () => {
           </div>
         </div>
 
-        {/* Message */}
-        {data?.message && (
-          <div className={styles.messageBox}>
-            <CheckCircle2 size={20} />
-            <span>{data.message}</span>
-          </div>
-        )}
-
         {/* Filters */}
         <div className={styles.filtersSection}>
-          <div className={styles.searchBox}>
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search programs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={styles.searchInput}
-            />
-          </div>
-
           <div className={styles.categoryFilters}>
             <button
               className={`${styles.filterButton} ${selectedCategory === 'all' ? styles.active : ''}`}
