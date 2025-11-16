@@ -493,19 +493,25 @@ async def search_live_training_programs(
         
         agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
         
+        # Check if Serper API key is available
+        if not settings.serper_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Serper API key not configured. Please set SERPER_API_KEY in .env file."
+            )
+        
         # Perform live search
-        logger.info("Searching web for training programs...")
+        logger.info("Searching web for training programs using Serper...")
         search_results = await agent.search_programs(
             state=user_state, 
             max_programs=20,
-            tavily_key=settings.tavily_api_key,
             serper_key=settings.serper_api_key
         )
         
         if not search_results['success']:
             raise HTTPException(
                 status_code=503,
-                detail=search_results.get('message', 'Search API not available. Please configure TAVILY_API_KEY or SERPER_API_KEY.')
+                detail=search_results.get('message', 'Search failed. Please check API keys.')
             )
         
         programs_list = search_results.get('programs', [])

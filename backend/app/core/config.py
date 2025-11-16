@@ -40,8 +40,7 @@ class Settings(BaseSettings):
     # ---------- OpenAI API ----------
     openai_api_key: Optional[str] = None
 
-    # ---------- Search APIs (for live training search) ----------
-    tavily_api_key: Optional[str] = None
+    # ---------- Search API (for live training search) ----------
     serper_api_key: Optional[str] = None
 
     # ---------- General Config ----------

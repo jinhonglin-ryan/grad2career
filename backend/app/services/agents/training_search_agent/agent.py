@@ -113,54 +113,6 @@ class TrainingSearchAgent:
         
         return queries
     
-    async def search_with_tavily(self, query: str, max_results: int = 5, tavily_key: str = None) -> List[Dict[str, Any]]:
-        """
-        Search using Tavily API (better for real-time web search)
-        """
-        try:
-            from tavily import TavilyClient
-            
-            if not tavily_key:
-                logger.warning("TAVILY_API_KEY not provided")
-                return []
-            
-            client = TavilyClient(api_key=tavily_key)
-            
-            # Exclude blog and news sites
-            exclude_domains = [
-                "medium.com", "wordpress.com", "blogspot.com", 
-                "forbes.com", "linkedin.com", "facebook.com",
-                "twitter.com", "reddit.com", "quora.com"
-            ]
-            
-            response = client.search(
-                query=query,
-                search_depth="advanced",
-                max_results=max_results,
-                include_domains=["edu", "gov", "org"],  # Only educational/govt/org sites
-                exclude_domains=exclude_domains
-            )
-            
-            results = []
-            for item in response.get('results', []):
-                url = item.get('url', '')
-                # Filter out blogs immediately
-                if is_valid_training_program_url(url):
-                    results.append({
-                        'title': item.get('title', ''),
-                        'url': url,
-                        'content': item.get('content', ''),
-                        'score': item.get('score', 0)
-                    })
-                else:
-                    logger.debug(f"Filtered search result (blog/news): {url}")
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Tavily search error: {str(e)}")
-            return []
-    
     async def search_with_serper(self, query: str, max_results: int = 5, serper_key: str = None) -> List[Dict[str, Any]]:
         """
         Search using Serper (Google Search API alternative)
@@ -215,11 +167,11 @@ class TrainingSearchAgent:
         self, 
         state: str,
         max_programs: int = 15,
-        tavily_key: str = None,
         serper_key: str = None
     ) -> Dict[str, Any]:
         """
         Main search function - searches for training programs and extracts structured data
+        Uses Serper (Google Search API)
         """
         logger.info(f"Starting training program search for {state}")
         
@@ -228,37 +180,34 @@ class TrainingSearchAgent:
         
         # Collect search results
         all_search_results = []
-        search_method_used = "none"
         
-        # Try Tavily first (best for this use case)
-        if tavily_key:
-            for query in queries[:4]:  # Limit to 4 queries to avoid rate limits
-                logger.info(f"Searching with Tavily: {query}")
-                results = await self.search_with_tavily(query, max_results=3, tavily_key=tavily_key)
-                if results:
-                    all_search_results.extend(results)
-                    search_method_used = "tavily"
-        
-        # If Tavily didn't work, try Serper
-        if not all_search_results and serper_key:
-            for query in queries[:4]:
-                logger.info(f"Searching with Serper: {query}")
-                results = await self.search_with_serper(query, max_results=3, serper_key=serper_key)
-                if results:
-                    all_search_results.extend(results)
-                    search_method_used = "serper"
-        
-        # If no API available, return informative message
-        if not all_search_results:
-            logger.warning("No search API available (Tavily or Serper)")
+        # Search with Serper
+        if not serper_key:
+            logger.error("SERPER_API_KEY not provided")
             return {
                 'success': False,
                 'programs': [],
                 'search_method': 'none',
-                'message': 'No search API configured. Please set TAVILY_API_KEY or SERPER_API_KEY environment variable.'
+                'message': 'SERPER_API_KEY not configured. Please set it in .env file.'
             }
         
-        logger.info(f"Found {len(all_search_results)} search results using {search_method_used}")
+        for query in queries[:6]:  # Use more queries for better coverage
+            logger.info(f"Searching with Serper: {query}")
+            results = await self.search_with_serper(query, max_results=5, serper_key=serper_key)
+            if results:
+                all_search_results.extend(results)
+        
+        # If no results found
+        if not all_search_results:
+            logger.warning("No search results found")
+            return {
+                'success': False,
+                'programs': [],
+                'search_method': 'serper',
+                'message': 'No search results found. Try a different state or check API key.'
+            }
+        
+        logger.info(f"Found {len(all_search_results)} search results using Serper")
         
         # Now use LLM to extract structured training program data
         programs = await self.extract_programs_from_results(all_search_results, state)
@@ -266,9 +215,9 @@ class TrainingSearchAgent:
         return {
             'success': True,
             'programs': programs,
-            'search_method': search_method_used,
+            'search_method': 'serper',
             'total_raw_results': len(all_search_results),
-            'message': f'Found {len(programs)} training programs using {search_method_used} search'
+            'message': f'Found {len(programs)} training programs using Serper Google Search'
         }
     
     async def extract_programs_from_results(
