@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
@@ -44,7 +44,7 @@ interface FullProfile {
     career_goals?: string;
   } | null;
   metadata: {
-    current_zip_code?: string;
+    state?: string;
     travel_constraint?: string;
     budget_constraint?: string;
     scheduling?: string;
@@ -282,6 +282,24 @@ const Dashboard = () => {
               <div className={styles.cardMeta}>
                 <CheckCircle2 size={16} />
                 <span>Personalized plan</span>
+              </div>
+            </div>
+            <ArrowRight className={styles.cardArrow} size={24} />
+          </div>
+
+          <div
+            className={`${styles.actionCard} ${styles.quaternary}`}
+            onClick={() => navigate('/training')}
+          >
+            <div className={styles.cardIconWrapper}>
+              <Zap size={28} />
+            </div>
+            <div className={styles.cardContent}>
+              <h3>Training Programs</h3>
+              <p>Discover training programs for coal miners transitioning to renewable energy careers</p>
+              <div className={styles.cardMeta}>
+                <CheckCircle2 size={16} />
+                <span>Coal miner transition and renewable energy programs</span>
               </div>
             </div>
             <ArrowRight className={styles.cardArrow} size={24} />

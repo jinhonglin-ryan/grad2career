@@ -440,7 +440,7 @@ async def update_user_profile(profile_update: dict, request: Request):
         
         # 可以更新的 metadata 字段（onboarding 相关）
         metadata_fields = [
-            'current_zip_code', 'travel_constraint', 'budget_constraint',
+            'state', 'travel_constraint', 'budget_constraint',
             'scheduling', 'weekly_hours_constraint', 'transition_goal',
             'transition_goal_text', 'target_sector', 'age', 'veteran_status'
         ]
@@ -546,7 +546,7 @@ async def save_user_profile(profile_data: dict, request: Request):
         # Store all onboarding data in users.metadata
         metadata = {
             # Screen 1: Logistical Constraints
-            'current_zip_code': profile_data.get('currentZipCode'),
+            'state': profile_data.get('state'),
             'travel_constraint': profile_data.get('travelConstraint'),
             'budget_constraint': profile_data.get('budgetConstraint'),
             'scheduling': profile_data.get('scheduling'),

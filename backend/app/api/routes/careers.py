@@ -56,9 +56,8 @@ async def get_career_matches(request: Request):
         if user_result.data and len(user_result.data) > 0:
             user_metadata = user_result.data[0].get('metadata', {}) or {}
         
-        user_zip = user_metadata.get('current_zip_code')
-        user_state = None
-        # Try to extract state from zip (simplified - in production, use geocoding)
+        user_state = user_metadata.get('state')
+        # State is now directly stored (west_virginia, kentucky, pennsylvania)
         
         # Get all target careers
         careers_result = supabase.table('target_careers').select('*').execute()
@@ -218,18 +217,28 @@ async def get_training_programs(
     supabase = get_supabase()
     
     try:
+        # State to default zip code mapping (using central/major city in each state)
+        STATE_ZIP_MAP = {
+            'west_virginia': '25301',  # Charleston, WV
+            'kentucky': '40502',        # Lexington, KY
+            'pennsylvania': '15219',    # Pittsburgh, PA
+        }
+        
         # Get user metadata for location if not provided
         zip_code = request_body.zip_code
         if not zip_code:
             user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
             if user_result.data and len(user_result.data) > 0:
                 user_metadata = user_result.data[0].get('metadata', {}) or {}
-                zip_code = user_metadata.get('current_zip_code')
+                # Try to get state and convert to zip code
+                user_state = user_metadata.get('state')
+                if user_state:
+                    zip_code = STATE_ZIP_MAP.get(user_state)
         
         if not zip_code:
             raise HTTPException(
                 status_code=400, 
-                detail="ZIP code is required. Please provide it in the request or complete your profile."
+                detail="Location is required. Please provide a ZIP code or complete your profile with a state."
             )
         
         # Use career title as occupation keyword if no occupation code provided

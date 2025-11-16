@@ -160,13 +160,21 @@ async def _run_job(job_id: str, query: str, user_id: str, session_id: str,
                 
                 # Add availability constraints
                 if user_metadata:
-                    zip_code = user_metadata.get('current_zip_code')
+                    state = user_metadata.get('state')
                     travel_constraint = user_metadata.get('travel_constraint')
                     scheduling = user_metadata.get('scheduling')
                     weekly_hours = user_metadata.get('weekly_hours_constraint')
                     
-                    if zip_code:
-                        context_parts.append(f"User location: ZIP code {zip_code}")
+                    # State label mapping
+                    state_labels = {
+                        'west_virginia': 'West Virginia',
+                        'kentucky': 'Kentucky',
+                        'pennsylvania': 'Pennsylvania'
+                    }
+                    
+                    if state:
+                        state_name = state_labels.get(state, state)
+                        context_parts.append(f"User location: {state_name}")
                     if travel_constraint:
                         context_parts.append(f"Travel constraint: {travel_constraint}")
                     if scheduling:
