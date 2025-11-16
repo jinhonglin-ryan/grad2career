@@ -78,17 +78,15 @@ class TrainingSearchAgent:
         
         return queries
     
-    async def search_with_tavily(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def search_with_tavily(self, query: str, max_results: int = 5, tavily_key: str = None) -> List[Dict[str, Any]]:
         """
         Search using Tavily API (better for real-time web search)
         """
         try:
             from tavily import TavilyClient
-            import os
             
-            tavily_key = os.getenv('TAVILY_API_KEY')
             if not tavily_key:
-                logger.warning("TAVILY_API_KEY not found")
+                logger.warning("TAVILY_API_KEY not provided")
                 return []
             
             client = TavilyClient(api_key=tavily_key)
@@ -114,17 +112,15 @@ class TrainingSearchAgent:
             logger.error(f"Tavily search error: {str(e)}")
             return []
     
-    async def search_with_serper(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def search_with_serper(self, query: str, max_results: int = 5, serper_key: str = None) -> List[Dict[str, Any]]:
         """
         Search using Serper (Google Search API alternative)
         """
         try:
             import httpx
-            import os
             
-            serper_key = os.getenv('SERPER_API_KEY')
             if not serper_key:
-                logger.warning("SERPER_API_KEY not found")
+                logger.warning("SERPER_API_KEY not provided")
                 return []
             
             url = "https://google.serper.dev/search"
@@ -164,7 +160,9 @@ class TrainingSearchAgent:
     async def search_programs(
         self, 
         state: str,
-        max_programs: int = 15
+        max_programs: int = 15,
+        tavily_key: str = None,
+        serper_key: str = None
     ) -> Dict[str, Any]:
         """
         Main search function - searches for training programs and extracts structured data
@@ -179,18 +177,19 @@ class TrainingSearchAgent:
         search_method_used = "none"
         
         # Try Tavily first (best for this use case)
-        for query in queries[:4]:  # Limit to 4 queries to avoid rate limits
-            logger.info(f"Searching with Tavily: {query}")
-            results = await self.search_with_tavily(query, max_results=3)
-            if results:
-                all_search_results.extend(results)
-                search_method_used = "tavily"
+        if tavily_key:
+            for query in queries[:4]:  # Limit to 4 queries to avoid rate limits
+                logger.info(f"Searching with Tavily: {query}")
+                results = await self.search_with_tavily(query, max_results=3, tavily_key=tavily_key)
+                if results:
+                    all_search_results.extend(results)
+                    search_method_used = "tavily"
         
         # If Tavily didn't work, try Serper
-        if not all_search_results:
+        if not all_search_results and serper_key:
             for query in queries[:4]:
                 logger.info(f"Searching with Serper: {query}")
-                results = await self.search_with_serper(query, max_results=3)
+                results = await self.search_with_serper(query, max_results=3, serper_key=serper_key)
                 if results:
                     all_search_results.extend(results)
                     search_method_used = "serper"

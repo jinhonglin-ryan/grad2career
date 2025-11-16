@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # ---------- Credential Engine API ----------
     credential_engine_api_key: Optional[str] = None
 
+    # ---------- OpenAI API ----------
+    openai_api_key: Optional[str] = None
+
+    # ---------- Search APIs (for live training search) ----------
+    tavily_api_key: Optional[str] = None
+    serper_api_key: Optional[str] = None
+
     # ---------- General Config ----------
     model_config = SettingsConfigDict(
         env_file=".env",

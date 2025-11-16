@@ -495,7 +495,12 @@ async def search_live_training_programs(
         
         # Perform live search
         logger.info("Searching web for training programs...")
-        search_results = await agent.search_programs(state=user_state, max_programs=20)
+        search_results = await agent.search_programs(
+            state=user_state, 
+            max_programs=20,
+            tavily_key=settings.tavily_api_key,
+            serper_key=settings.serper_api_key
+        )
         
         if not search_results['success']:
             raise HTTPException(
