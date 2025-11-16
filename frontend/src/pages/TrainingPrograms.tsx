@@ -13,7 +13,8 @@ import {
   Filter,
   AlertCircle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -62,12 +63,13 @@ const TrainingPrograms = () => {
     fetchTrainingPrograms();
   }, []);
 
-  const fetchTrainingPrograms = async () => {
+  const fetchTrainingPrograms = async (useLiveSearch: boolean = false) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.post('/training/coal-miner-training', {
+      const endpoint = useLiveSearch ? '/training/search-live-programs' : '/training/coal-miner-training';
+      const response = await api.post(endpoint, {
         max_results: 20
       });
       
@@ -206,6 +208,14 @@ const TrainingPrograms = () => {
               </p>
             </div>
           </div>
+          <button 
+            className={styles.liveSearchButton}
+            onClick={() => fetchTrainingPrograms(true)}
+            disabled={loading}
+          >
+            <RefreshCw size={18} />
+            Live Search
+          </button>
         </div>
 
         {/* Summary Stats */}

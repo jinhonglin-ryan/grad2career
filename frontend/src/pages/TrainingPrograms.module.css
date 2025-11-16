@@ -73,12 +73,44 @@
   padding: 2rem;
   margin-bottom: 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
 }
 
 .headerContent {
   display: flex;
   align-items: flex-start;
   gap: 1.5rem;
+  flex: 1;
+}
+
+.liveSearchButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.liveSearchButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.liveSearchButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .headerIcon {
@@ -527,8 +559,17 @@
     font-size: 1.5rem;
   }
 
+  .header {
+    flex-direction: column;
+  }
+
   .headerContent {
     flex-direction: column;
+  }
+
+  .liveSearchButton {
+    width: 100%;
+    justify-content: center;
   }
 
   .statsGrid {

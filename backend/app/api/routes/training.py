@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from app.core.supabase import get_supabase
+from app.core.config import settings
 from app.services.external_apis import careeronestop_search_training
 
 logger = logging.getLogger(__name__)
@@ -422,5 +423,144 @@ async def get_coal_miner_training_recommendations(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch training programs: {str(e)}"
+        )
+
+
+@router.post("/search-live-programs", response_model=TrainingRecommendationResponse)
+async def search_live_training_programs(
+    request_body: CoalMinerTrainingRequest,
+    request: Request
+):
+    """
+    Search for training programs in REAL-TIME using Google Search + AI extraction.
+    
+    This endpoint:
+    1. Uses Tavily or Serper API to search the web
+    2. Uses OpenAI to extract structured program data
+    3. Does NOT use cache - always fresh results
+    4. Saves results to database for future use
+    
+    Requires: TAVILY_API_KEY or SERPER_API_KEY + OPENAI_API_KEY
+    """
+    # Get user from JWT token
+    from app.api.routes.auth import verify_jwt_token
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # State mapping
+        STATE_NAMES = {
+            'west_virginia': 'West Virginia',
+            'kentucky': 'Kentucky',
+            'pennsylvania': 'Pennsylvania'
+        }
+        
+        # Get user metadata
+        user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
+        user_metadata = {}
+        if user_result.data and len(user_result.data) > 0:
+            user_metadata = user_result.data[0].get('metadata', {}) or {}
+        
+        # Get user's state
+        user_state = request_body.state or user_metadata.get('state')
+        if not user_state:
+            raise HTTPException(
+                status_code=400,
+                detail="State information required. Please complete your onboarding profile."
+            )
+        
+        state_name = STATE_NAMES.get(user_state, user_state)
+        
+        logger.info(f"🔍 Starting LIVE search for training programs in {state_name}")
+        
+        # Check if OpenAI API key is available
+        if not settings.openai_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI API key not configured. Cannot perform live search."
+            )
+        
+        # Import and use the training search agent
+        from app.services.agents.training_search_agent import TrainingSearchAgent
+        
+        agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
+        
+        # Perform live search
+        logger.info("Searching web for training programs...")
+        search_results = await agent.search_programs(state=user_state, max_programs=20)
+        
+        if not search_results['success']:
+            raise HTTPException(
+                status_code=503,
+                detail=search_results.get('message', 'Search API not available. Please configure TAVILY_API_KEY or SERPER_API_KEY.')
+            )
+        
+        programs_list = search_results.get('programs', [])
+        search_method = search_results.get('search_method', 'unknown')
+        
+        logger.info(f"Found {len(programs_list)} programs using {search_method}")
+        
+        # Save to database for future use
+        if programs_list:
+            logger.info(f"Saving {len(programs_list)} programs to database...")
+            await save_programs_to_database(supabase, programs_list, user_state)
+        
+        # Prepare user data for relevance scoring
+        user_data = {
+            'state': user_state,
+            'budget_constraint': user_metadata.get('budget_constraint'),
+            'scheduling': user_metadata.get('scheduling'),
+            'target_sector': user_metadata.get('target_sector')
+        }
+        
+        # Filter and rank programs
+        coal_specific, general_renewable = filter_and_rank_programs(programs_list, user_data)
+        
+        # Limit results
+        max_results = request_body.max_results
+        coal_specific = coal_specific[:max_results]
+        general_renewable = general_renewable[:max_results]
+        
+        total_programs = len(coal_specific) + len(general_renewable)
+        
+        # Prepare response message
+        message = f"✅ Live search complete! Found {len(coal_specific)} coal miner-specific and {len(general_renewable)} general renewable energy programs in {state_name} using {search_method} + AI extraction."
+        
+        if not programs_list:
+            message = f"No programs found in live search. This might be due to API rate limits or no programs available in {state_name}."
+        
+        return TrainingRecommendationResponse(
+            success=True,
+            user_state=state_name,
+            coal_miner_specific_programs=coal_specific,
+            general_renewable_programs=general_renewable,
+            total_programs=total_programs,
+            search_details={
+                'queries_used': ['google_search_live'],
+                'state': state_name,
+                'zip_code': 'N/A',
+                'total_raw_results': search_results.get('total_raw_results', 0),
+                'unique_programs': len(programs_list),
+                'data_source': f'{search_method} + OpenAI extraction',
+                'search_method': search_method
+            },
+            message=message
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in live search: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Live search failed: {str(e)}"
         )
 
