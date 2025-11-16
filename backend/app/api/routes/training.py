@@ -88,8 +88,8 @@ def calculate_relevance_score(program: Dict[str, Any], user_data: Dict[str, Any]
     """
     score = 0.0
     
-    program_name = program.get('program_name', '').lower()
-    program_desc = program.get('description', '').lower()
+    program_name = (program.get('program_name') or '').lower()
+    program_desc = (program.get('description') or '').lower()
     program_text = f"{program_name} {program_desc}"
     
     # Check for coal miner specific keywords
@@ -103,13 +103,13 @@ def calculate_relevance_score(program: Dict[str, Any], user_data: Dict[str, Any]
     
     # Location match (if location data is available)
     user_state = user_data.get('state', '')
-    program_location = program.get('location', '').lower()
+    program_location = (program.get('location') or '').lower()
     if user_state and user_state.replace('_', ' ') in program_location:
         score += 20
     
     # Budget compatibility
     budget = user_data.get('budget_constraint', '')
-    cost = program.get('cost', '').lower()
+    cost = (program.get('cost') or '').lower()
     if budget == 'free' and ('free' in cost or 'grant' in cost or 'funded' in cost):
         score += 10
     
@@ -137,7 +137,7 @@ def filter_and_rank_programs(
         
         # Add relevance reason
         reasons = []
-        program_text = f"{program.get('program_name', '')} {program.get('description', '')}".lower()
+        program_text = f"{program.get('program_name') or ''} {program.get('description') or ''}".lower()
         
         if program.get('is_coal_miner_specific'):
             reasons.append("Designed for coal miners")

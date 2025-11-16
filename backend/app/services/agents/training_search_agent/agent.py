@@ -14,6 +14,42 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
+def is_valid_training_program_url(url: str) -> bool:
+    """
+    Validate if URL is likely a legitimate training program page
+    Filters out blogs, news sites, and generic pages
+    """
+    if not url:
+        return True  # No URL is okay (some programs may not have websites)
+    
+    url_lower = url.lower()
+    
+    # Block blog and news domains
+    blocked_domains = [
+        'medium.com', 'wordpress.com', 'blogspot.com',
+        'forbes.com', 'cnbc.com', 'reuters.com', 'bloomberg.com',
+        'linkedin.com', 'facebook.com', 'twitter.com', 'reddit.com',
+        'blog.', '/blog/', '/news/', '/article/', '/post/'
+    ]
+    
+    if any(domain in url_lower for domain in blocked_domains):
+        return False
+    
+    # Prefer educational and organizational domains
+    preferred_indicators = [
+        '.edu', '.gov', '.org',
+        'training', 'program', 'certificate', 'course',
+        'workforce', 'college', 'university', 'academy'
+    ]
+    
+    # If URL has preferred indicators, it's likely good
+    if any(indicator in url_lower for indicator in preferred_indicators):
+        return True
+    
+    # Otherwise, be conservative
+    return '.com' not in url_lower or any(ind in url_lower for ind in ['training', 'program', 'course'])
+
+
 class TrainingProgramResult(BaseModel):
     """Structured training program information"""
     program_name: str = Field(description="Name of the training program")
@@ -50,6 +86,7 @@ class TrainingSearchAgent:
     def create_search_queries(self, state: str) -> List[str]:
         """
         Generate comprehensive search queries for training programs
+        Focus on institutions and programs, not blog posts
         """
         state_names = {
             'west_virginia': 'West Virginia',
@@ -59,21 +96,19 @@ class TrainingSearchAgent:
         state_name = state_names.get(state, state)
         
         queries = [
-            # Coal miner specific
-            f"coal miner renewable energy training programs {state_name}",
-            f"displaced coal worker solar wind training {state_name}",
-            f"coal to clean energy transition programs {state_name}",
-            f"appalachian coal miner retraining renewable energy",
+            # Specific program searches (more likely to find real programs)
+            f"site:edu solar installer training program {state_name}",
+            f"site:edu wind turbine technician certification {state_name}",
+            f"community college renewable energy certificate {state_name}",
+            f"workforce development solar training enroll {state_name}",
             
-            # General renewable energy
-            f"solar installer certification training {state_name}",
-            f"wind turbine technician program {state_name}",
-            f"renewable energy training {state_name}",
-            f"clean energy jobs training {state_name}",
+            # Coal miner specific programs
+            f"coal worker retraining program {state_name} apply",
+            f"displaced miner clean energy training enrollment {state_name}",
             
-            # Specific institutions
-            f"community college solar training {state_name}",
-            f"workforce development renewable energy {state_name}",
+            # Government and organization programs
+            f"site:gov workforce training renewable energy {state_name}",
+            f"site:org coal miner transition solar wind {state_name}",
         ]
         
         return queries
@@ -90,21 +125,35 @@ class TrainingSearchAgent:
                 return []
             
             client = TavilyClient(api_key=tavily_key)
+            
+            # Exclude blog and news sites
+            exclude_domains = [
+                "medium.com", "wordpress.com", "blogspot.com", 
+                "forbes.com", "linkedin.com", "facebook.com",
+                "twitter.com", "reddit.com", "quora.com"
+            ]
+            
             response = client.search(
                 query=query,
                 search_depth="advanced",
                 max_results=max_results,
-                include_domains=["edu", "gov", "org"],  # Prioritize educational/govt sites
+                include_domains=["edu", "gov", "org"],  # Only educational/govt/org sites
+                exclude_domains=exclude_domains
             )
             
             results = []
             for item in response.get('results', []):
-                results.append({
-                    'title': item.get('title', ''),
-                    'url': item.get('url', ''),
-                    'content': item.get('content', ''),
-                    'score': item.get('score', 0)
-                })
+                url = item.get('url', '')
+                # Filter out blogs immediately
+                if is_valid_training_program_url(url):
+                    results.append({
+                        'title': item.get('title', ''),
+                        'url': url,
+                        'content': item.get('content', ''),
+                        'score': item.get('score', 0)
+                    })
+                else:
+                    logger.debug(f"Filtered search result (blog/news): {url}")
             
             return results
             
@@ -144,12 +193,17 @@ class TrainingSearchAgent:
                 results = []
                 
                 for item in data.get('organic', []):
-                    results.append({
-                        'title': item.get('title', ''),
-                        'url': item.get('link', ''),
-                        'content': item.get('snippet', ''),
-                        'score': item.get('position', 99)
-                    })
+                    url = item.get('link', '')
+                    # Filter out blogs immediately
+                    if is_valid_training_program_url(url):
+                        results.append({
+                            'title': item.get('title', ''),
+                            'url': url,
+                            'content': item.get('snippet', ''),
+                            'score': item.get('position', 99)
+                        })
+                    else:
+                        logger.debug(f"Filtered search result (blog/news): {url}")
                 
                 return results
                 
@@ -235,39 +289,49 @@ class TrainingSearchAgent:
         
         # Create extraction prompt
         extraction_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert at extracting training program information from web search results.
+            ("system", """You are an expert at extracting REAL, ACTIONABLE training program information from web search results.
 
-Your task is to identify and extract REAL training programs for coal miners transitioning to renewable energy careers.
+CRITICAL RULES - Only extract programs that meet ALL these criteria:
+1. ✅ The program ACTUALLY EXISTS (not just an article about programs)
+2. ✅ Has a CLEAR provider/institution name
+3. ✅ Has enrollment/application information OR contact details
+4. ✅ Is offered by: Community College, Technical School, University, Workforce Board, or Non-profit
+5. ✅ Focuses on RENEWABLE ENERGY (solar, wind, clean energy) or COAL MINER TRANSITION
 
-Focus on:
-1. Programs specifically for COAL MINERS or displaced mining workers
-2. Training in SOLAR, WIND, or other RENEWABLE ENERGY fields
-3. Programs in or near {state}
+DO NOT EXTRACT:
+❌ Blog posts or news articles ABOUT training programs
+❌ General information pages without specific programs
+❌ Programs outside the target state ({state})
+❌ Programs that are just mentioned but no details provided
+❌ Opinion pieces or editorials
+❌ Job postings
 
-Extract the following for each program you find:
-- program_name: Official name of the training program
-- provider: Organization/institution offering it
-- location: City and state
-- duration: How long the program takes
-- cost: Price or if it's free/grant-funded
-- description: What the program covers
-- url: Website link
-- is_coal_miner_specific: true if specifically for coal miners
-- contact_info: Email or phone if available
+VALIDATION - Each program MUST have:
+- Specific program name (not generic like "training program")
+- Named institution (college, org, etc.)
+- Real location in {state}
+- Either: URL to program page, OR contact info, OR application details
 
-IMPORTANT:
-- Only extract programs that clearly exist (not just mentions)
-- If a result talks about a program, extract its real details
-- Skip generic articles or news stories
-- Focus on actual training programs with clear information
+Extract the following for ONLY legitimate programs:
+- program_name: Official specific name (e.g., "Solar PV Installation Certificate Program")
+- provider: Exact organization name (e.g., "West Virginia Community College")
+- location: City, State format (e.g., "Charleston, WV")
+- duration: Program length if mentioned (e.g., "12 weeks", "6 months")
+- cost: Price, "Free", "Grant-funded", or "Contact for pricing"
+- description: Brief what-you-learn description (2-3 sentences max)
+- url: Direct link to program page (not homepage)
+- is_coal_miner_specific: true ONLY if explicitly for coal miners/displaced miners
+- contact_info: Email or phone if provided
+
+If you find ZERO legitimate programs, return an empty programs array. Do not fabricate programs.
 
 {format_instructions}
 """),
-            ("human", """Search Results for training programs in {state}:
+            ("human", """Web Search Results for renewable energy training in {state}:
 
 {search_results}
 
-Please extract all legitimate training programs from these search results.""")
+Extract ONLY real, enrollable training programs. Be strict and conservative.""")
         ])
         
         # Format prompt
@@ -292,14 +356,21 @@ Please extract all legitimate training programs from these search results.""")
             
             logger.info(f"Extracted {len(programs)} training programs")
             
-            # Convert to dict format
+            # Convert to dict format and validate URLs
             programs_list = []
             for prog in programs:
                 if isinstance(prog, dict):
-                    programs_list.append(prog)
+                    program_dict = prog
                 else:
-                    programs_list.append(prog.dict())
+                    program_dict = prog.dict()
+                
+                # Validate URL (filter out blogs)
+                if is_valid_training_program_url(program_dict.get('url', '')):
+                    programs_list.append(program_dict)
+                else:
+                    logger.info(f"Filtered out blog/news: {program_dict.get('program_name', 'Unknown')}")
             
+            logger.info(f"After URL filtering: {len(programs_list)} valid programs")
             return programs_list
             
         except Exception as e:
