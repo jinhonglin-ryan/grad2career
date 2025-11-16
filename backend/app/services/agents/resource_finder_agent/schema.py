@@ -32,9 +32,6 @@ class TrainingProgram(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     website_url: Optional[str] = None
-    # Allow additional fields from API
-    class Config:
-        extra = "allow"
 
 class FinalPlan(BaseModel):
     status: Literal["success", "error"]
