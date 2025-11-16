@@ -211,13 +211,14 @@ refine_agent = LlmAgent(
         "- User's availability constraints (travel distance, scheduling preferences, weekly hours)\n"
         "- Selected training programs the user wants to participate in\n"
         "- Schedule training programs in the calendar based on their start dates and user availability\n"
-        "Return ONLY JSON matching the output schema. "
+        "Return ONLY JSON matching the output schema EXACTLY (no extra keys, no comments, no prose). "
+        "Do NOT include any properties not defined in the schema. "
         "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...], 'training_programs': [...] }. "
         "Failure example: { 'status': 'error', 'error_message': '...'}.\n\n"
-        "Context (do not echo verbatim):\n"
-        "- Web search results: {search_results}\n"
-        "- YouTube selection: {youtube_selection}\n"
-        "- Training programs: {training_programs}"
+        "Context variables (use if available in memory; do NOT echo verbatim):\n"
+        "- search_results\n"
+        "- youtube_selection\n"
+        "- training_programs"
     ),
     description="Refines results into a final JSON learning plan with videos, resources, and training programs.",
     output_schema=FinalPlan,
