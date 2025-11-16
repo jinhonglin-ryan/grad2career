@@ -7,6 +7,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
+import { Modal, Spin, Alert } from 'antd';
 
 interface SkillProfile {
   has_assessment: boolean;
@@ -60,6 +61,11 @@ const Dashboard = () => {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [fullProfile, setFullProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [grantModalOpen, setGrantModalOpen] = useState(false);
+  const [grantLoading, setGrantLoading] = useState(false);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [grantName, setGrantName] = useState<string>('');
+  const [grantResult, setGrantResult] = useState<any | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,6 +96,39 @@ const Dashboard = () => {
 
     fetchData();
   }, [user?.id]);
+
+  const handleOpenGrant = async (name: string) => {
+    if (!user?.id) {
+      navigate('/login');
+      return;
+    }
+    setGrantName(name);
+    setGrantModalOpen(true);
+    setGrantLoading(true);
+    setGrantError(null);
+    setGrantResult(null);
+    try {
+      const resp = await api.post('/subsidy/evaluate', {
+        user_id: user.id,
+        grant_name: name,
+        session_id: 'default',
+      });
+      const data = resp.data;
+      if (data?.status === 'success') {
+        setGrantResult(data.data || null);
+      } else {
+        setGrantError(data?.message || 'Failed to evaluate grant.');
+      }
+    } catch (e: any) {
+      setGrantError(e?.response?.data?.detail || e?.message || 'Request failed');
+    } finally {
+      setGrantLoading(false);
+    }
+  };
+
+  const CIRCUMFERENCE = 339.292;
+  const progressPercent = skillProfile?.has_assessment ? 100 : 25;
+  const progressOffset = CIRCUMFERENCE * (1 - progressPercent / 100);
 
 
   return (
@@ -157,8 +196,8 @@ const Dashboard = () => {
                   fill="none"
                   stroke="url(#gradient)"
                   strokeWidth="8"
-                  strokeDasharray="339.292"
-                  strokeDashoffset="100"
+                  strokeDasharray={CIRCUMFERENCE}
+                  strokeDashoffset={progressOffset}
                   strokeLinecap="round"
                   transform="rotate(-90 60 60)"
                 />
@@ -246,6 +285,35 @@ const Dashboard = () => {
               </div>
             </div>
             <ArrowRight className={styles.cardArrow} size={24} />
+          </div>
+        </div>
+
+        {/* Available Grants */}
+        <div className={styles.sectionHeader}>
+          <h2>Available Grants</h2>
+          <p>Explore support programs tailored for energy transition</p>
+        </div>
+        <div className={styles.grantsGrid}>
+          <div className={styles.grantCard} onClick={() => handleOpenGrant('POWER Dislocated Worker Grants')}>
+            <img src="/grants/power-dwg.png" alt="POWER Dislocated Worker Grants" className={styles.grantImage} />
+            <div className={styles.grantContent}>
+              <h3 className={styles.grantTitle}>POWER Dislocated Worker Grants</h3>
+              <p className={styles.grantSubtitle}>U.S. Department of Labor</p>
+            </div>
+          </div>
+          <div className={styles.grantCard} onClick={() => handleOpenGrant('Assistance to Coal Communities (ACC)')}>
+            <img src="/grants/acc-eda.png" alt="Assistance to Coal Communities (ACC)" className={styles.grantImage} />
+            <div className={styles.grantContent}>
+              <h3 className={styles.grantTitle}>Assistance to Coal Communities (ACC)</h3>
+              <p className={styles.grantSubtitle}>Economic Development Administration (EDA)</p>
+            </div>
+          </div>
+          <div className={styles.grantCard} onClick={() => handleOpenGrant('Just Transition Program – Colorado')}>
+            <img src="/grants/just-transition-co.png" alt="Just Transition Program – Colorado" className={styles.grantImage} />
+            <div className={styles.grantContent}>
+              <h3 className={styles.grantTitle}>Just Transition Program – Colorado</h3>
+              <p className={styles.grantSubtitle}>Colorado Department of Labor and Employment</p>
+            </div>
           </div>
         </div>
 
@@ -448,8 +516,61 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      {/* Grant Modal */}
+      <Modal
+        open={grantModalOpen}
+        onCancel={() => setGrantModalOpen(false)}
+        footer={null}
+        title={`Grant Evaluation: ${grantName || ''}`}
+        width={720}
+      >
+        {grantLoading ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <Spin tip="Evaluating eligibility..." />
+          </div>
+        ) : grantError ? (
+          <Alert type="error" message={grantError} />
+        ) : grantResult ? (
+          <div>
+            <h3 style={{ marginBottom: '0.75rem' }}>Checklist</h3>
+            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+              {(grantResult.checklist || []).map((item: any, idx: number) => (
+                <li key={idx} style={{ marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {item.requirement}{' '}
+                    <span style={{ color: item.satisfied ? '#10b981' : '#dc2626' }}>
+                      {item.satisfied ? '✓' : '✗'}
+                    </span>
+                  </div>
+                  {item.rationale && (
+                    <div style={{ color: '#475569', fontSize: '0.9rem' }}>{item.rationale}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <h3 style={{ marginTop: '1.25rem', marginBottom: '0.75rem' }}>Sources</h3>
+            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+              {(grantResult.sources || []).map((src: any, idx: number) => (
+                <li key={idx} style={{ marginBottom: '0.5rem' }}>
+                  <a href={src.url} target="_blank" rel="noopener noreferrer">
+                    {src.title || src.url}
+                  </a>
+                  {src.snippet && <div style={{ color: '#475569', fontSize: '0.9rem' }}>{src.snippet}</div>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <Alert type="info" message="No result returned." />
+        )}
+      </Modal>
     </div>
   );
 };
 
 export default Dashboard;
+
+// Grant Modal (rendered at the end to avoid layout nesting issues)
+// Note: Keep outside of main return if you prefer a portal; here appended above footer.
+
