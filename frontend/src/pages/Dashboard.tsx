@@ -256,11 +256,11 @@ const Dashboard = () => {
               <Zap size={28} />
             </div>
             <div className={styles.cardContent}>
-              <h3>Renewable Energy Training</h3>
-              <p>Discover coal miner transition programs and renewable energy training in your state</p>
+              <h3>Training Programs</h3>
+              <p>Discover training programs for coal miners transitioning to renewable energy careers</p>
               <div className={styles.cardMeta}>
                 <CheckCircle2 size={16} />
-                <span>Coal miner specific programs</span>
+                <span>Coal miner transition and renewable energy programs</span>
               </div>
             </div>
             <ArrowRight className={styles.cardArrow} size={24} />

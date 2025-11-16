@@ -54,6 +54,7 @@ const TrainingPrograms = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<TrainingRecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'coal_miner' | 'renewable'>('all');
@@ -63,12 +64,19 @@ const TrainingPrograms = () => {
     fetchTrainingPrograms();
   }, []);
 
-  const fetchTrainingPrograms = async (useLiveSearch: boolean = false) => {
-    setLoading(true);
+  const fetchTrainingPrograms = async (forceLiveSearch: boolean = false) => {
+    if (forceLiveSearch) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     
     try {
-      const endpoint = useLiveSearch ? '/training/search-live-programs' : '/training/coal-miner-training';
+      const endpoint = forceLiveSearch 
+        ? '/training/search-live-programs'  // Force live search
+        : '/training/coal-miner-training';   // Use cache if available
+      
       const response = await api.post(endpoint, {
         max_results: 20
       });
@@ -79,6 +87,7 @@ const TrainingPrograms = () => {
       setError(err.response?.data?.detail || 'Failed to fetch training programs. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -136,8 +145,8 @@ const TrainingPrograms = () => {
         
         <div className={styles.loadingContainer}>
           <Loader2 size={48} className={styles.spinner} />
-          <h2>Finding training programs for you...</h2>
-          <p>Searching for coal miner transition and renewable energy programs in your area</p>
+          <h2>Loading training programs...</h2>
+          <p>Checking for cached results or performing live search if needed</p>
         </div>
       </div>
     );
@@ -209,35 +218,17 @@ const TrainingPrograms = () => {
             </div>
           </div>
           <button 
-            className={styles.liveSearchButton}
+            className={styles.refreshButton}
             onClick={() => fetchTrainingPrograms(true)}
-            disabled={loading}
+            disabled={refreshing || loading}
           >
-            <RefreshCw size={18} />
-            Live Search
+            <RefreshCw size={18} className={refreshing ? styles.spinning : ''} />
+            {refreshing ? 'Searching...' : 'Refresh Results'}
           </button>
         </div>
 
         {/* Summary Stats */}
         <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>
-              <Award size={24} />
-            </div>
-            <div>
-              <div className={styles.statValue}>{data?.coal_miner_specific_programs.length || 0}</div>
-              <div className={styles.statLabel}>Coal Miner Specific</div>
-            </div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>
-              <Zap size={24} />
-            </div>
-            <div>
-              <div className={styles.statValue}>{data?.general_renewable_programs.length || 0}</div>
-              <div className={styles.statLabel}>Renewable Energy</div>
-            </div>
-          </div>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
               <MapPin size={24} />

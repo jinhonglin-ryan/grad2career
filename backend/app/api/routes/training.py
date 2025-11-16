@@ -1,8 +1,7 @@
 """
 Training program recommendation routes for coal miners transitioning to renewable energy.
 
-This module provides endpoints to find and recommend training programs specifically
-designed for coal miners, or general renewable energy training programs.
+Uses real-time Google Search (Serper API) + OpenAI to find and extract training programs.
 """
 
 import logging
@@ -11,7 +10,6 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from app.core.supabase import get_supabase
 from app.core.config import settings
-from app.services.external_apis import careeronestop_search_training
 
 logger = logging.getLogger(__name__)
 
@@ -162,17 +160,14 @@ def filter_and_rank_programs(
 async def get_programs_from_database(supabase, user_state: str) -> List[Dict[str, Any]]:
     """
     Fetch training programs from database for a specific state.
-    Returns programs from our curated database.
     """
     try:
-        # Query training programs for the user's state
         result = supabase.table('training_programs').select('*').eq(
             'state', user_state
         ).eq('is_active', True).execute()
         
         if result.data:
-            logger.info(f"Found {len(result.data)} programs in database for {user_state}")
-            # Convert database records to our expected format
+            logger.info(f"Found {len(result.data)} cached programs in database for {user_state}")
             programs = []
             for record in result.data:
                 programs.append({
@@ -184,263 +179,73 @@ async def get_programs_from_database(supabase, user_state: str) -> List[Dict[str
                     'description': record.get('description', ''),
                     'url': record.get('url', ''),
                     'is_coal_miner_specific': record.get('is_coal_miner_specific', False),
-                    'program_type': record.get('program_type', ''),
-                    'contact_email': record.get('contact_email'),
-                    'contact_phone': record.get('contact_phone'),
-                    'financial_aid_available': record.get('financial_aid_available', False),
-                    'job_placement_assistance': record.get('job_placement_assistance', False),
-                    'certification_provided': record.get('certification_provided'),
                 })
             return programs
-        else:
-            logger.warning(f"No programs found in database for {user_state}")
-            return []
+        return []
     except Exception as e:
-        logger.error(f"Error fetching programs from database: {str(e)}")
+        logger.error(f"Error fetching from database: {str(e)}")
         return []
 
 
 async def save_programs_to_database(supabase, programs: List[Dict[str, Any]], user_state: str):
     """
-    Save training programs to database for future use.
-    Only saves if program doesn't already exist.
+    Save training programs to database.
+    Updates existing or creates new.
     """
     try:
         for program in programs:
-            # Check if program already exists
+            program_name = program.get('program_name', '')
+            if not program_name:
+                continue
+                
+            # Check if exists
             existing = supabase.table('training_programs').select('id').eq(
-                'program_name', program.get('program_name')
+                'program_name', program_name
             ).eq('state', user_state).execute()
             
-            if not existing.data:
-                # Insert new program
-                program_data = {
-                    'program_name': program.get('program_name', ''),
-                    'provider': program.get('provider', ''),
-                    'state': user_state,
-                    'location': program.get('location', ''),
-                    'duration': program.get('duration', ''),
-                    'cost': program.get('cost', ''),
-                    'description': program.get('description', ''),
-                    'url': program.get('url', ''),
-                    'is_coal_miner_specific': program.get('is_coal_miner_specific', False),
-                    'source': 'careeronestop',
-                    'is_active': True,
-                }
+            program_data = {
+                'program_name': program_name,
+                'provider': program.get('provider', ''),
+                'state': user_state,
+                'location': program.get('location', ''),
+                'duration': program.get('duration', ''),
+                'cost': program.get('cost', ''),
+                'description': program.get('description', ''),
+                'url': program.get('url', ''),
+                'is_coal_miner_specific': program.get('is_coal_miner_specific', False),
+                'source': 'serper_live_search',
+                'is_active': True,
+            }
+            
+            if existing.data:
+                # Update existing
+                supabase.table('training_programs').update(program_data).eq(
+                    'id', existing.data[0]['id']
+                ).execute()
+            else:
+                # Insert new
                 supabase.table('training_programs').insert(program_data).execute()
         
-        logger.info(f"Saved programs to database for {user_state}")
+        logger.info(f"Saved/updated {len(programs)} programs to database for {user_state}")
     except Exception as e:
-        logger.error(f"Error saving programs to database: {str(e)}")
-        # Don't fail the request if save fails
+        logger.error(f"Error saving to database: {str(e)}")
+        # Don't fail request if save fails
 
 
 @router.post("/coal-miner-training", response_model=TrainingRecommendationResponse)
-async def get_coal_miner_training_recommendations(
+async def get_coal_miner_training_programs(
     request_body: CoalMinerTrainingRequest,
     request: Request
 ):
     """
-    Find training programs for coal miners transitioning to renewable energy.
+    Get training programs for coal miners (uses cached results if available).
     
-    Priority 1: Programs specifically designed for coal miners
-    Priority 2: General renewable energy training programs
+    Strategy:
+    1. Check database for cached results (fast, < 1 second)
+    2. If no cache exists, perform live search (15-30 seconds)
+    3. Save results to database for future use
     
-    Search is performed in the user's state (WV, KY, PA) or surrounding areas.
-    """
-    # Get user from JWT token
-    from app.api.routes.auth import verify_jwt_token
-    
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    token = auth_header.replace('Bearer ', '')
-    payload = verify_jwt_token(token)
-    user_id = payload['user_id']
-    
-    supabase = get_supabase()
-    
-    try:
-        # State to zip code mapping
-        STATE_ZIP_MAP = {
-            'west_virginia': '25301',  # Charleston, WV
-            'kentucky': '40502',        # Lexington, KY
-            'pennsylvania': '15219',    # Pittsburgh, PA
-        }
-        
-        STATE_NAMES = {
-            'west_virginia': 'West Virginia',
-            'kentucky': 'Kentucky',
-            'pennsylvania': 'Pennsylvania'
-        }
-        
-        # Get user metadata
-        user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
-        user_metadata = {}
-        if user_result.data and len(user_result.data) > 0:
-            user_metadata = user_result.data[0].get('metadata', {}) or {}
-        
-        # Get user's state
-        user_state = request_body.state or user_metadata.get('state')
-        if not user_state:
-            raise HTTPException(
-                status_code=400,
-                detail="State information required. Please complete your onboarding profile."
-            )
-        
-        zip_code = STATE_ZIP_MAP.get(user_state)
-        state_name = STATE_NAMES.get(user_state, user_state)
-        
-        logger.info(f"Searching training programs for coal miners in {state_name}")
-        
-        # Prepare user data for relevance scoring
-        user_data = {
-            'state': user_state,
-            'budget_constraint': user_metadata.get('budget_constraint'),
-            'scheduling': user_metadata.get('scheduling'),
-            'target_sector': user_metadata.get('target_sector')
-        }
-        
-        # STEP 1: Try to get programs from database first (fast, cached)
-        logger.info(f"Fetching programs from database for {state_name}")
-        programs_list = await get_programs_from_database(supabase, user_state)
-        search_queries = ["database_cached"]
-        all_programs = []  # Initialize for response tracking
-        
-        # STEP 2: If no programs in database, try CareerOneStop API
-        if not programs_list:
-            logger.info(f"No cached programs found. Searching CareerOneStop API for {state_name}")
-            search_queries = []
-            
-            # Search 1: Coal miner specific renewable energy programs
-            coal_miner_searches = [
-                "coal miner renewable energy training",
-                "coal worker transition clean energy",
-                "mining to solar wind career"
-            ]
-            
-            for query in coal_miner_searches:
-                logger.info(f"Searching CareerOneStop: '{query}' in {state_name}")
-                search_queries.append(query)
-                result = careeronestop_search_training(
-                    occupation=query,
-                    location=zip_code,
-                    max_results=10
-                )
-                
-                if result["status"] == "success":
-                    programs = result.get("programs", [])
-                    all_programs.extend(programs)
-            
-            # Search 2: General renewable energy programs
-            renewable_searches = [
-                "solar installer certification",
-                "wind turbine technician training",
-                "renewable energy technician",
-                "solar panel installation",
-                "clean energy jobs training"
-            ]
-            
-            for query in renewable_searches:
-                logger.info(f"Searching CareerOneStop: '{query}' in {state_name}")
-                search_queries.append(query)
-                result = careeronestop_search_training(
-                    occupation=query,
-                    location=zip_code,
-                    max_results=10
-                )
-                
-                if result["status"] == "success":
-                    programs = result.get("programs", [])
-                    all_programs.extend(programs)
-            
-            # Remove duplicates based on program name
-            unique_programs = {}
-            for program in all_programs:
-                program_name = program.get('program_name', program.get('ProgramName', ''))
-                if program_name and program_name not in unique_programs:
-                    # Normalize program structure
-                    normalized_program = {
-                        'program_name': program_name,
-                        'provider': program.get('provider', program.get('Provider', '')),
-                        'location': program.get('location', program.get('City', '')),
-                        'duration': program.get('duration', program.get('Duration', '')),
-                        'cost': program.get('cost', program.get('Cost', '')),
-                        'description': program.get('description', program.get('Description', '')),
-                        'url': program.get('url', program.get('URL', '')),
-                    }
-                    unique_programs[program_name] = normalized_program
-            
-            programs_list = list(unique_programs.values())
-            
-            # STEP 3: Save API results to database for future use
-            if programs_list:
-                logger.info(f"Saving {len(programs_list)} programs to database")
-                await save_programs_to_database(supabase, programs_list, user_state)
-        
-        # Filter and rank programs
-        coal_specific, general_renewable = filter_and_rank_programs(programs_list, user_data)
-        
-        # Limit results
-        max_results = request_body.max_results
-        coal_specific = coal_specific[:max_results]
-        general_renewable = general_renewable[:max_results]
-        
-        total_programs = len(coal_specific) + len(general_renewable)
-        
-        # Prepare response message
-        data_source = "our curated database" if search_queries[0] == "database_cached" else "CareerOneStop"
-        
-        if coal_specific:
-            message = f"Found {len(coal_specific)} coal miner-specific programs and {len(general_renewable)} general renewable energy programs in {state_name} from {data_source}."
-        elif general_renewable:
-            message = f"No coal miner-specific programs found, but found {len(general_renewable)} general renewable energy training programs in {state_name} from {data_source}."
-        else:
-            message = f"No training programs currently available in {state_name}. We recommend running the database setup to load curated programs."
-        
-        return TrainingRecommendationResponse(
-            success=True,
-            user_state=state_name,
-            coal_miner_specific_programs=coal_specific,
-            general_renewable_programs=general_renewable,
-            total_programs=total_programs,
-            search_details={
-                'queries_used': search_queries,
-                'state': state_name,
-                'zip_code': zip_code,
-                'total_raw_results': len(all_programs) if all_programs else len(programs_list),
-                'unique_programs': len(programs_list),
-                'data_source': data_source
-            },
-            message=message
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching coal miner training programs: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch training programs: {str(e)}"
-        )
-
-
-@router.post("/search-live-programs", response_model=TrainingRecommendationResponse)
-async def search_live_training_programs(
-    request_body: CoalMinerTrainingRequest,
-    request: Request
-):
-    """
-    Search for training programs in REAL-TIME using Google Search + AI extraction.
-    
-    This endpoint:
-    1. Uses Tavily or Serper API to search the web
-    2. Uses OpenAI to extract structured program data
-    3. Does NOT use cache - always fresh results
-    4. Saves results to database for future use
-    
-    Requires: TAVILY_API_KEY or SERPER_API_KEY + OPENAI_API_KEY
+    For fresh results, use /search-live-programs endpoint instead.
     """
     # Get user from JWT token
     from app.api.routes.auth import verify_jwt_token
@@ -479,31 +284,168 @@ async def search_live_training_programs(
         
         state_name = STATE_NAMES.get(user_state, user_state)
         
-        logger.info(f"🔍 Starting LIVE search for training programs in {state_name}")
+        # STEP 1: Try database first (fast)
+        logger.info(f"Checking database for cached programs in {state_name}")
+        programs_list = await get_programs_from_database(supabase, user_state)
+        data_source = "cached"
         
-        # Check if OpenAI API key is available
-        if not settings.openai_api_key:
+        # STEP 2: If no cache, perform live search
+        if not programs_list:
+            logger.info(f"No cache found. Performing live search for {state_name}")
+            
+            # Check API keys
+            if not settings.openai_api_key:
+                raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+            if not settings.serper_api_key:
+                raise HTTPException(status_code=503, detail="Serper API key not configured")
+            
+            # Import and use agent
+            from app.services.agents.training_search_agent import TrainingSearchAgent
+            
+            agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
+            search_results = await agent.search_programs(
+                state=user_state,
+                max_programs=20,
+                serper_key=settings.serper_api_key
+            )
+            
+            if not search_results['success']:
+                raise HTTPException(
+                    status_code=503,
+                    detail=search_results.get('message', 'Search failed')
+                )
+            
+            programs_list = search_results.get('programs', [])
+            data_source = "live_search"
+            
+            # Save to database for future use
+            if programs_list:
+                logger.info(f"Saving {len(programs_list)} programs to database")
+                await save_programs_to_database(supabase, programs_list, user_state)
+        else:
+            logger.info(f"Using {len(programs_list)} cached programs")
+        
+        # Prepare user data for relevance scoring
+        user_data = {
+            'state': user_state,
+            'budget_constraint': user_metadata.get('budget_constraint'),
+            'scheduling': user_metadata.get('scheduling'),
+            'target_sector': user_metadata.get('target_sector')
+        }
+        
+        # Filter and rank programs
+        coal_specific, general_renewable = filter_and_rank_programs(programs_list, user_data)
+        
+        # Limit results
+        max_results = request_body.max_results
+        coal_specific = coal_specific[:max_results]
+        general_renewable = general_renewable[:max_results]
+        
+        total_programs = len(coal_specific) + len(general_renewable)
+        
+        # Prepare response message
+        if data_source == "cached":
+            message = f"Found {len(coal_specific)} coal miner-specific and {len(general_renewable)} general renewable energy programs in {state_name} (from cache)."
+        else:
+            message = f"✅ Live search complete! Found {len(coal_specific)} coal miner-specific and {len(general_renewable)} general renewable energy programs in {state_name}."
+        
+        if not programs_list:
+            message = f"No programs found. Click 'Refresh Results' to search again."
+        
+        return TrainingRecommendationResponse(
+            success=True,
+            user_state=state_name,
+            coal_miner_specific_programs=coal_specific,
+            general_renewable_programs=general_renewable,
+            total_programs=total_programs,
+            search_details={
+                'queries_used': [data_source],
+                'state': state_name,
+                'zip_code': 'N/A',
+                'total_raw_results': len(programs_list),
+                'unique_programs': len(programs_list),
+                'data_source': data_source
+            },
+            message=message
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching training programs: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch training programs: {str(e)}"
+        )
+
+
+@router.post("/search-live-programs", response_model=TrainingRecommendationResponse)
+async def force_live_search_training_programs(
+    request_body: CoalMinerTrainingRequest,
+    request: Request
+):
+    """
+    Force a fresh live search (ignores cache).
+    
+    This endpoint ALWAYS performs real-time search:
+    1. Bypasses database cache
+    2. Searches Google using Serper API
+    3. Extracts programs using OpenAI
+    4. Updates database with fresh results
+    
+    Use this when user clicks "Refresh Results" button.
+    """
+    # Get user from JWT token
+    from app.api.routes.auth import verify_jwt_token
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    supabase = get_supabase()
+    
+    try:
+        # State mapping
+        STATE_NAMES = {
+            'west_virginia': 'West Virginia',
+            'kentucky': 'Kentucky',
+            'pennsylvania': 'Pennsylvania'
+        }
+        
+        # Get user metadata
+        user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
+        user_metadata = {}
+        if user_result.data and len(user_result.data) > 0:
+            user_metadata = user_result.data[0].get('metadata', {}) or {}
+        
+        # Get user's state
+        user_state = request_body.state or user_metadata.get('state')
+        if not user_state:
             raise HTTPException(
-                status_code=503,
-                detail="OpenAI API key not configured. Cannot perform live search."
+                status_code=400,
+                detail="State information required. Please complete your onboarding profile."
             )
         
-        # Import and use the training search agent
+        state_name = STATE_NAMES.get(user_state, user_state)
+        
+        logger.info(f"🔄 FORCE REFRESH: Live search for training programs in {state_name}")
+        
+        # Check API keys
+        if not settings.openai_api_key:
+            raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+        if not settings.serper_api_key:
+            raise HTTPException(status_code=503, detail="Serper API key not configured")
+        
+        # Import and use agent
         from app.services.agents.training_search_agent import TrainingSearchAgent
         
         agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
-        
-        # Check if Serper API key is available
-        if not settings.serper_api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="Serper API key not configured. Please set SERPER_API_KEY in .env file."
-            )
-        
-        # Perform live search
-        logger.info("Searching web for training programs using Serper...")
         search_results = await agent.search_programs(
-            state=user_state, 
+            state=user_state,
             max_programs=20,
             serper_key=settings.serper_api_key
         )
@@ -511,17 +453,16 @@ async def search_live_training_programs(
         if not search_results['success']:
             raise HTTPException(
                 status_code=503,
-                detail=search_results.get('message', 'Search failed. Please check API keys.')
+                detail=search_results.get('message', 'Search failed')
             )
         
         programs_list = search_results.get('programs', [])
-        search_method = search_results.get('search_method', 'unknown')
         
-        logger.info(f"Found {len(programs_list)} programs using {search_method}")
+        logger.info(f"Found {len(programs_list)} programs in live search")
         
-        # Save to database for future use
+        # Save/update database
         if programs_list:
-            logger.info(f"Saving {len(programs_list)} programs to database...")
+            logger.info(f"Updating database with {len(programs_list)} programs")
             await save_programs_to_database(supabase, programs_list, user_state)
         
         # Prepare user data for relevance scoring
@@ -543,10 +484,10 @@ async def search_live_training_programs(
         total_programs = len(coal_specific) + len(general_renewable)
         
         # Prepare response message
-        message = f"✅ Live search complete! Found {len(coal_specific)} coal miner-specific and {len(general_renewable)} general renewable energy programs in {state_name} using {search_method} + AI extraction."
+        message = f"🔄 Refreshed! Found {len(coal_specific)} coal miner-specific and {len(general_renewable)} general renewable energy programs in {state_name}."
         
         if not programs_list:
-            message = f"No programs found in live search. This might be due to API rate limits or no programs available in {state_name}."
+            message = f"No programs found in search. This might be due to limited results in {state_name}."
         
         return TrainingRecommendationResponse(
             success=True,
@@ -555,13 +496,12 @@ async def search_live_training_programs(
             general_renewable_programs=general_renewable,
             total_programs=total_programs,
             search_details={
-                'queries_used': ['google_search_live'],
+                'queries_used': ['live_search_forced'],
                 'state': state_name,
                 'zip_code': 'N/A',
-                'total_raw_results': search_results.get('total_raw_results', 0),
+                'total_raw_results': len(programs_list),
                 'unique_programs': len(programs_list),
-                'data_source': f'{search_method} + OpenAI extraction',
-                'search_method': search_method
+                'data_source': 'live_search_refresh'
             },
             message=message
         )
@@ -569,7 +509,7 @@ async def search_live_training_programs(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in live search: {str(e)}")
+        logger.error(f"Error in forced live search: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Live search failed: {str(e)}"

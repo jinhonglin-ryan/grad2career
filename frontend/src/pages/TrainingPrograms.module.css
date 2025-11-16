@@ -86,7 +86,7 @@
   flex: 1;
 }
 
-.liveSearchButton {
+.refreshButton {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -103,14 +103,27 @@
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.liveSearchButton:hover:not(:disabled) {
+.refreshButton:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
 }
 
-.liveSearchButton:disabled {
+.refreshButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .headerIcon {
@@ -453,15 +466,6 @@
   margin-bottom: 1rem;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .loadingContainer h2 {
   font-size: 1.5rem;
   font-weight: 700;
@@ -567,7 +571,7 @@
     flex-direction: column;
   }
 
-  .liveSearchButton {
+  .refreshButton {
     width: 100%;
     justify-content: center;
   }
