@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import health, auth, agent, skills, youtube, learning, careers, training
+from app.api.routes import health, auth, agent, skills, youtube, learning, careers, training, subsidy
 
 router = APIRouter()
 
@@ -11,3 +11,4 @@ router.include_router(careers.router, prefix="/careers", tags=["Career Matching"
 router.include_router(youtube.router, prefix="/youtube", tags=["YouTube"])
 router.include_router(learning.router, prefix="/learning", tags=["Learning Path"])
 router.include_router(training.router, prefix="/training", tags=["Training Programs"])
+router.include_router(subsidy.router, prefix="/subsidy", tags=["Subsidy"])
