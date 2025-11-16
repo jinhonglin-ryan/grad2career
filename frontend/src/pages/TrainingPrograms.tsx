@@ -10,6 +10,7 @@ import {
   DollarSign, 
   ExternalLink,
   AlertCircle,
+  CheckCircle2,
   Loader2,
   RefreshCw
 } from 'lucide-react';
