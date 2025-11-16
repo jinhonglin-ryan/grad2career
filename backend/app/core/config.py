@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     supabase_anon_key: Optional[str] = None
 
     # ---------- Google OAuth ----------
-    google_client_id: str
-    google_client_secret: str
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
     google_redirect_uri: str = "http://127.0.0.1:8000/auth/google/callback"
 
     # ---------- JWT ----------
@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     youtube_api_key: Optional[str] = None
 
     # ---------- CareerOneStop API ----------
-    careeronestop_api_key: Optional[str] = None
+    careeronestop_api_key: Optional[str] = None  # API token for Bearer authentication
+    careeronestop_user_id: Optional[str] = None  # User ID for API endpoint (if separate from API key)
 
     # ---------- Credential Engine API ----------
     credential_engine_api_key: Optional[str] = None

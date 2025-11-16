@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   skills: {
     assess: '/skills/assess/conversation',
     start: '/skills/assess/start',
+    questionnaire: '/skills/assess/questionnaire', // NEW: Mining questionnaire endpoint
     extract: '/skills/extract',
     profile: '/skills/profile',
     session: '/skills/assess/session',
@@ -19,6 +20,7 @@ export const API_ENDPOINTS = {
   },
   careers: {
     match: '/careers/match',
+    targetCareers: '/careers/target-careers', // NEW: Get all target careers
     recommendations: '/careers/recommendations',
     details: '/careers/details',
   },

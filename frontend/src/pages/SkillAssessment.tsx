@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Briefcase, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp, Target, Briefcase } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Logo from '../components/Logo';
 import styles from './SkillAssessment.module.css';
 
 interface Message {
@@ -34,6 +35,7 @@ const TURN_LABELS_FULL = {
   4: 'Safety, Leadership, & Compliance'
 };
 const SkillAssessment = () => {
+  const [assessmentMode, setAssessmentMode] = useState<'choice' | 'questionnaire' | 'chat' | 'completed'>('choice');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,58 +82,57 @@ const SkillAssessment = () => {
             extraction_timestamp: response.data.updated_at || new Date().toISOString(),
             extracted_skills: response.data.extracted_skills
           });
-          // Show existing skills but don't start conversation automatically
-          // User can click "Redo Assessment" to start a new one
+          // Show existing skills - user can choose to update
+          setAssessmentMode('completed');
+        } else {
+          // No existing assessment - show choice screen
+          setAssessmentMode('choice');
         }
       } catch (error) {
         console.error('Error loading existing skills:', error);
-        // If no existing skills, continue to start new assessment
+        // If no existing skills, show choice screen
+        setAssessmentMode('choice');
       }
     };
 
     loadExistingSkills();
   }, [user?.id]);
 
-  // Initialize assessment on mount (only if no existing skills shown)
-  useEffect(() => {
-    const startAssessment = async () => {
-      // Don't start if we're showing existing skills (wait for user to click "Redo Assessment")
-      if (skillProfile && !sessionId) return;
+  // Initialize chat assessment when user selects chat mode
+  const startChatAssessment = async () => {
+    try {
+      setInitializing(true);
+      setAssessmentMode('chat');
+      const response = await api.post('/skills/assess/start', {
+        user_id: user?.id || 'web'
+      });
       
-      try {
-        setInitializing(true);
-        const response = await api.post('/skills/assess/start', {
-          user_id: user?.id || 'web'
-        });
-        
-        const initialMessage: Message = {
-          role: 'assistant',
-          content: response.data.response,
-          timestamp: new Date(),
-        };
-        
-        setMessages([initialMessage]);
-        setCurrentTurn(response.data.current_turn);
-        setSessionId(response.data.session_id);
-      } catch (error) {
-        console.error('Error starting assessment:', error);
-        toast.error('Failed to start assessment. Please refresh the page and try again.');
-        const errorMessage: Message = {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error starting the assessment. Please refresh the page and try again.',
-          timestamp: new Date(),
-        };
-        setMessages([errorMessage]);
-      } finally {
-        setInitializing(false);
-      }
-    };
-
-    // Only auto-start if no session ID and we don't have existing skills being displayed
-    if (!sessionId && !skillProfile) {
-      startAssessment();
+      const initialMessage: Message = {
+        role: 'assistant',
+        content: response.data.response,
+        timestamp: new Date(),
+      };
+      
+      setMessages([initialMessage]);
+      setCurrentTurn(response.data.current_turn);
+      setSessionId(response.data.session_id);
+    } catch (error) {
+      console.error('Error starting assessment:', error);
+      toast.error('Failed to start assessment. Please refresh the page and try again.');
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error starting the assessment. Please refresh the page and try again.',
+        timestamp: new Date(),
+      };
+      setMessages([errorMessage]);
+    } finally {
+      setInitializing(false);
     }
-  }, [user?.id, skillProfile, sessionId]);
+  };
+
+  const startQuestionnaire = () => {
+    navigate('/assessment/questionnaire');
+  };
 
   // Helper function to clean response messages (remove JSON schema if present)
   const cleanResponseMessage = (message: string): string => {
@@ -336,6 +337,173 @@ const SkillAssessment = () => {
 
   const isComplete = currentTurn >= 4 && skillProfile !== null;
 
+  // Choice screen - show when user needs to pick assessment method
+  if (assessmentMode === 'choice') {
+    return (
+      <div className={styles.container}>
+        <nav className={styles.nav}>
+          <div className={styles.navContent}>
+            <Logo variant="icon" onClick={() => navigate('/dashboard')} />
+            <div className={styles.navRight}>
+              <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
+                <ArrowLeft size={18} />
+                Back to Dashboard
+              </button>
+              <span className={styles.userName}>{user?.name || user?.email}</span>
+              <button onClick={logout} className={styles.logoutButton}>
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        <div className={styles.mainContent}>
+          <div className={styles.choiceContainer}>
+            <div className={styles.choiceHeader}>
+              <h1>Choose Your Assessment Method</h1>
+              <p>Select the best way to assess your mining skills and experience</p>
+            </div>
+
+            <div className={styles.choiceCards}>
+              <div 
+                className={`${styles.choiceCard} ${styles.recommended}`}
+                onClick={startQuestionnaire}
+              >
+                <div className={styles.choiceBadge}>Recommended for Coal Miners</div>
+                <div className={styles.choiceIcon}>
+                  <Target size={48} />
+                </div>
+                <h2>Structured Questionnaire</h2>
+                <p className={styles.choiceDescription}>
+                  Answer targeted questions about your mining experience. Faster and more accurate for coal industry workers.
+                </p>
+                <ul className={styles.choiceFeatures}>
+                  <li>✓ Mining-specific questions</li>
+                  <li>✓ Faster completion (~5 minutes)</li>
+                  <li>✓ More reliable skill extraction</li>
+                  <li>✓ No AI interpretation needed</li>
+                </ul>
+                <button className={styles.choiceButton}>
+                  Start Questionnaire →
+                </button>
+              </div>
+
+              <div 
+                className={styles.choiceCard}
+                onClick={startChatAssessment}
+              >
+                <div className={styles.choiceIcon}>
+                  <Sparkles size={48} />
+                </div>
+                <h2>AI Conversation</h2>
+                <p className={styles.choiceDescription}>
+                  Have a natural conversation with our AI assistant. More flexible but takes longer.
+                </p>
+                <ul className={styles.choiceFeatures}>
+                  <li>✓ Natural conversation flow</li>
+                  <li>✓ AI-guided questions</li>
+                  <li>✓ More detailed exploration</li>
+                  <li>✓ ~15 minutes</li>
+                </ul>
+                <button className={styles.choiceButton}>
+                  Start Chat Assessment →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Completed assessment view
+  if (assessmentMode === 'completed' && skillProfile) {
+    return (
+      <div className={styles.container}>
+        <ToastContainer 
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
+        <nav className={styles.nav}>
+          <div className={styles.navContent}>
+            <Logo variant="icon" onClick={() => navigate('/dashboard')} />
+            <div className={styles.navRight}>
+              <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
+                <ArrowLeft size={18} />
+                Back to Dashboard
+              </button>
+              <span className={styles.userName}>{user?.name || user?.email}</span>
+              <button onClick={logout} className={styles.logoutButton}>
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        <div className={styles.mainContent}>
+          <div className={styles.completedView}>
+            <div className={styles.completedHeader}>
+              <CheckCircle size={48} className={styles.successIcon} />
+              <h1>Assessment Complete</h1>
+              <p>We've identified {skillProfile.extracted_skills.length} transferable skills from your experience</p>
+            </div>
+
+            <div className={styles.completedActions}>
+              <button 
+                onClick={() => navigate('/careers')}
+                className={styles.primaryButton}
+              >
+                <Briefcase size={18} />
+                Explore Career Matches
+              </button>
+              <button 
+                onClick={startQuestionnaire}
+                className={styles.updateButton}
+              >
+                <RefreshCw size={18} />
+                Update Assessment
+              </button>
+              <button 
+                onClick={startChatAssessment}
+                className={styles.updateButton}
+              >
+                <Sparkles size={18} />
+                Start New Chat
+              </button>
+            </div>
+
+            <div className={styles.skillsDisplaySection}>
+              <div className={styles.skillsHeader}>
+                <h2>Your Identified Skills</h2>
+                <span className={styles.skillCount}>{skillProfile.extracted_skills.length} skills</span>
+              </div>
+              <div className={styles.skillsScrollContainer}>
+                <div className={styles.skillGrid}>
+                  {skillProfile.extracted_skills.map((skill, index) => (
+                    <div key={index} className={styles.skillCardCompact}>
+                      <div className={styles.skillCategory}>{skill.category}</div>
+                      <div className={styles.skillPhrase}>{skill.user_phrase}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <ToastContainer 
@@ -352,10 +520,7 @@ const SkillAssessment = () => {
       />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/')}>
-            <Briefcase className={styles.logoIcon} />
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <button onClick={() => navigate('/dashboard')} className={styles.dashboardNavButton}>
               <ArrowLeft size={18} />

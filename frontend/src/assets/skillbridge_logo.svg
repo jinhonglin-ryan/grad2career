@@ -1,0 +1,24 @@
+<!-- SkillBridge emblem -->
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SkillBridge emblem">
+  <defs>
+    <linearGradient id="sb-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0EA5A5"></stop>
+      <stop offset="100%" stop-color="#2563EB"></stop>
+    </linearGradient>
+  </defs>
+  <path d="M10 96 H118" fill="none" stroke="#0F172A" stroke-width="8" stroke-linecap="round"></path>
+  <path d="M28 96 V64 M100 96 V64" fill="none" stroke="#0F172A" stroke-width="8" stroke-linecap="round"></path>
+  <path d="M28 64 C48 28, 80 28, 100 64" fill="none" stroke="url(#sb-grad)" stroke-width="8" stroke-linecap="round"></path>
+  <g transform="translate(64,52)">
+    <circle cx="0" cy="0" r="12" fill="none" stroke="#0F172A" stroke-width="4"></circle>
+    <g fill="#0F172A">
+      <rect x="-2" y="-22" width="4" height="7" rx="1"></rect>
+      <rect x="-2" y="15" width="4" height="7" rx="1"></rect>
+      <rect x="-22" y="-2" width="7" height="4" rx="1"></rect>
+      <rect x="15" y="-2" width="7" height="4" rx="1"></rect>
+      <rect x="-15" y="-15" width="6" height="4" rx="1" transform="rotate(-45)"></rect>
+      <rect x="9" y="-15" width="6" height="4" rx="1" transform="rotate(45)"></rect>
+    </g>
+    <path d="M3 -12 C20 -5, 20 11, 3 16 C7 7,7 -3,3 -12 Z" fill="url(#sb-grad)"></path>
+  </g>
+</svg>

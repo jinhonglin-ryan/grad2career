@@ -52,6 +52,12 @@ def verify_jwt_token(token: str) -> dict:
 @router.get("/google/login")
 async def google_login():
     """启动 Google OAuth 流程"""
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables."
+        )
+    
     params = {
         "client_id": settings.google_client_id,
         "redirect_uri": settings.google_redirect_uri,
@@ -67,6 +73,10 @@ async def google_login():
 @router.get("/google/callback")
 async def google_callback(code: str = None, error: str = None):
     """处理 Google OAuth 回调"""
+    if not settings.google_client_id or not settings.google_client_secret:
+        error_url = f"{settings.frontend_url}/auth/callback?error=Google OAuth is not configured"
+        return RedirectResponse(url=error_url)
+    
     if error:
         error_url = f"{settings.frontend_url}/auth/callback?error={error}"
         return RedirectResponse(url=error_url)
@@ -416,6 +426,15 @@ async def update_user_profile(profile_update: dict, request: Request):
             profile_updates['career_goals'] = profile_update['career_goals']
         if 'work_experience' in profile_update:
             profile_updates['work_experience'] = profile_update['work_experience']
+        # Mining-specific fields
+        if 'previous_job_title' in profile_update:
+            profile_updates['previous_job_title'] = profile_update['previous_job_title']
+        if 'mining_role' in profile_update:
+            profile_updates['mining_role'] = profile_update['mining_role']
+        if 'mining_type' in profile_update:
+            profile_updates['mining_type'] = profile_update['mining_type']
+        if 'years_mining_experience' in profile_update:
+            profile_updates['years_mining_experience'] = profile_update['years_mining_experience']
         # Note: skills, tools, certifications are handled by the assessment flow
         # and stored in JSONB columns which may not exist in all database versions
         

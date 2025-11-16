@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
-  background: #f9fafb;
-  padding-top: 72px; /* Match nav bar height exactly */
+  background: #F7F6F3; /* Sand 50 */
+  padding-top: 88px; /* Nav height (72px) + spacing (16px) */
   position: relative;
   z-index: 0; /* Lower than nav bar */
 }
@@ -12,9 +12,9 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
   z-index: 1000; /* Very high z-index to ensure it's always on top */
   display: block; /* Ensure it's displayed */
   visibility: visible; /* Ensure it's visible */
@@ -1131,5 +1131,351 @@
   color: #4b5563;
   line-height: 1.4;
   font-style: italic;
+}
+
+/* Choice Screen Styles */
+.choiceContainer {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.choiceHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.choiceHeader h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.choiceHeader p {
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+.choiceCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.choiceCard {
+  background: white;
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.choiceCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  border-color: #667eea;
+}
+
+.choiceCard.recommended {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+}
+
+.choiceBadge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.choiceIcon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  color: #667eea;
+}
+
+.choiceCard h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.choiceDescription {
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.choiceFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+}
+
+.choiceFeatures li {
+  padding: 0.5rem 0;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.choiceButton {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-top: 1rem;
+}
+
+.choiceButton:hover {
+  transform: translateY(-2px);
+}
+
+/* Completed View Styles */
+.completedView {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.completedHeader {
+  text-align: center;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 2.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.successIcon {
+  color: #10b981;
+  margin-bottom: 1rem;
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.completedHeader h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.completedHeader p {
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+.completedActions {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.updateButton,
+.primaryButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.updateButton {
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+}
+
+.updateButton:hover {
+  background: #f5f7ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.primaryButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.skillsDisplaySection {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.skillsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.skillsHeader h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.skillCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.875rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 2rem;
+  color: #667eea;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.skillsScrollContainer {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.skillsScrollContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.skillsScrollContainer::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.skillGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.skillCardCompact {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  transition: all 0.2s;
+}
+
+.skillCardCompact:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
+}
+
+.skillCardCompact .skillCategory {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.375rem;
+}
+
+.skillCardCompact .skillPhrase {
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .completedActions {
+    grid-template-columns: 1fr;
+  }
+
+  .skillGrid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .choiceCards {
+    grid-template-columns: 1fr;
+  }
+
+  .completedActions {
+    grid-template-columns: 1fr;
+  }
+
+  .updateButton,
+  .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .skillGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .completedView {
+    padding: 1rem;
+  }
+
+  .completedHeader {
+    padding: 1.5rem;
+  }
+
+  .completedHeader h1 {
+    font-size: 1.75rem;
+  }
+
+  .skillsScrollContainer {
+    max-height: 300px;
+  }
 }
 

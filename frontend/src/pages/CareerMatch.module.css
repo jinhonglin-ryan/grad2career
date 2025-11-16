@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
-  background: #f9fafb;
-  padding-top: 88px;
+  background: #F7F6F3; /* Sand 50 */
+  padding-top: 88px; /* Nav height (72px) + spacing (16px) */
 }
 
 .nav {
@@ -10,9 +10,9 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(247, 246, 243, 0.95); /* Sand 50 with opacity */
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); /* Anthracite 900 shadow */
   z-index: 100;
 }
 
@@ -235,7 +235,8 @@
 }
 
 .skillTag,
-.missingSkillTag {
+.missingSkillTag,
+.certTag {
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
@@ -250,6 +251,20 @@
 .missingSkillTag {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.certTag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.localGrowth {
+  color: #059669;
+  font-weight: 500;
+  padding: 0.75rem;
+  background: #d1fae5;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .actionButton {

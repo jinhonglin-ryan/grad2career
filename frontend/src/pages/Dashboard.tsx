@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
 
 interface SkillProfile {
@@ -16,26 +19,67 @@ interface SkillProfile {
     skills?: string[];
     tools?: string[];
     work_experience?: string;
+    previous_job_title?: string;
+    mining_role?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
   };
   updated_at?: string;
+}
+
+interface FullProfile {
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+    onboarding_completed: boolean;
+  };
+  profile: {
+    previous_job_title?: string;
+    mining_role?: string;
+    mining_type?: string;
+    years_mining_experience?: number;
+    work_experience?: string;
+    career_goals?: string;
+  } | null;
+  metadata: {
+    current_zip_code?: string;
+    travel_constraint?: string;
+    budget_constraint?: string;
+    scheduling?: string;
+    weekly_hours_constraint?: string;
+    transition_goal?: string;
+    transition_goal_text?: string;
+    target_sector?: string;
+  };
 }
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
+  const [fullProfile, setFullProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSkillProfile = async () => {
+    const fetchData = async () => {
       if (!user?.id) {
         setLoading(false);
         return;
       }
 
       try {
-        const response = await api.get(`/skills/profile/${user.id}`);
-        setSkillProfile(response.data);
+        // Fetch skill profile
+        const skillResponse = await api.get(`/skills/profile/${user.id}`);
+        setSkillProfile(skillResponse.data);
+
+        // Fetch full profile for mining-specific data
+        try {
+          const profileResponse = await api.get('/auth/user/profile');
+          setFullProfile(profileResponse.data);
+        } catch (error) {
+          console.error('Error fetching full profile:', error);
+        }
       } catch (error) {
         console.error('Error fetching skill profile:', error);
         setSkillProfile(null);
@@ -44,19 +88,27 @@ const Dashboard = () => {
       }
     };
 
-    fetchSkillProfile();
+    fetchData();
   }, [user?.id]);
+
 
   return (
     <div className={styles.container}>
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       <nav className={styles.nav}>
         <div className={styles.navContent}>
-          <div className={styles.logo} onClick={() => navigate('/')}>
-            <div className={styles.logoIconWrapper}>
-              <Briefcase className={styles.logoIcon} />
-            </div>
-            <span className={styles.logoText}>SkillBridge</span>
-          </div>
+          <Logo variant="icon" onClick={() => navigate('/dashboard')} />
           <div className={styles.navRight}>
             <div className={styles.userInfo} onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
               <div className={styles.userAvatar}>
@@ -271,7 +323,7 @@ const Dashboard = () => {
 
           <div className={styles.profileCard}>
             <div className={styles.cardHeader}>
-              <h2>Your Profile</h2>
+              <h2>Your Mining Profile</h2>
             </div>
             <div className={styles.profileHeader}>
               <div className={styles.profileAvatar}>
@@ -282,6 +334,38 @@ const Dashboard = () => {
                 <p>{user?.email}</p>
               </div>
             </div>
+
+            {/* Mining-Specific Information */}
+            {(fullProfile?.profile?.previous_job_title || fullProfile?.profile?.mining_type || fullProfile?.profile?.years_mining_experience) && (
+              <div className={styles.miningInfoSection}>
+                <div className={styles.sectionTitle}>
+                  <HardHat size={20} />
+                  <h3>Mining Background</h3>
+                </div>
+                <div className={styles.infoGrid}>
+                  {fullProfile?.profile?.previous_job_title && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Previous Job</span>
+                      <span className={styles.value}>{fullProfile.profile.previous_job_title}</span>
+                    </div>
+                  )}
+                  {fullProfile?.profile?.mining_type && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Mining Type</span>
+                      <span className={styles.value}>{fullProfile.profile.mining_type}</span>
+                    </div>
+                  )}
+                  {fullProfile?.profile?.years_mining_experience && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label}>Experience</span>
+                      <span className={styles.value}>{fullProfile.profile.years_mining_experience} years</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+
             <div className={styles.profileInfo}>
               <div className={styles.profileItem}>
                 <div className={styles.itemIcon}>
@@ -332,12 +416,33 @@ const Dashboard = () => {
               </div>
             )}
             <div className={styles.profileActions}>
-              <button className={styles.editButton} onClick={() => navigate('/profile')}>
+              <button 
+                type="button"
+                className={styles.editButton} 
+                onClick={() => navigate('/profile')}
+              >
                 <User size={18} />
                 View Full Profile
               </button>
-              <button className={styles.secondaryButton} onClick={() => navigate('/assessment')}>
-                {skillProfile?.has_assessment ? 'View/Update Skills' : 'Start Assessment'}
+              <button 
+                type="button"
+                className={styles.secondaryButton} 
+                onClick={async () => {
+                  // Clear previous assessment data when retaking
+                  if (skillProfile?.has_assessment) {
+                    try {
+                      // Call backend to clear assessment data
+                      await api.delete('/skills/clear-assessment');
+                      toast.info('Previous assessment cleared. Starting new assessment...');
+                    } catch (error) {
+                      console.error('Error clearing assessment:', error);
+                      // Continue to assessment page anyway
+                    }
+                  }
+                  navigate('/assessment');
+                }}
+              >
+                {skillProfile?.has_assessment ? 'Retake Assessment' : 'Start Assessment'}
               </button>
             </div>
           </div>
