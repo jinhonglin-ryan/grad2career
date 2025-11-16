@@ -9,9 +9,7 @@ import {
   Clock, 
   DollarSign, 
   ExternalLink,
-  Filter,
   AlertCircle,
-  CheckCircle2,
   Loader2,
   RefreshCw
 } from 'lucide-react';
@@ -56,7 +54,6 @@ const TrainingPrograms = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<TrainingRecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'coal_miner' | 'renewable'>('all');
 
   useEffect(() => {
     fetchTrainingPrograms();
@@ -91,18 +88,8 @@ const TrainingPrograms = () => {
 
   const getDisplayedPrograms = () => {
     if (!data) return [];
-    
-    let programs: TrainingProgram[] = [];
-    
-    if (selectedCategory === 'all') {
-      programs = [...data.coal_miner_specific_programs, ...data.general_renewable_programs];
-    } else if (selectedCategory === 'coal_miner') {
-      programs = data.coal_miner_specific_programs;
-    } else {
-      programs = data.general_renewable_programs;
-    }
-    
-    return programs;
+    // Show all programs (no filtering)
+    return [...data.coal_miner_specific_programs, ...data.general_renewable_programs];
   };
 
   const getMatchScoreColor = (score: number) => {
@@ -197,10 +184,14 @@ const TrainingPrograms = () => {
             <div className={styles.headerIcon}>
               <Zap size={32} />
             </div>
-            <div>
+            <div className={styles.headerText}>
+              <div className={styles.stateBadge}>
+                <MapPin size={16} />
+                {data?.user_state || 'Loading...'}
+              </div>
               <h1 className={styles.title}>Renewable Energy Training Programs</h1>
               <p className={styles.subtitle}>
-                Programs for coal miners transitioning to clean energy careers in {data?.user_state}
+                Programs for coal miners transitioning to clean energy careers
               </p>
             </div>
           </div>
@@ -212,46 +203,6 @@ const TrainingPrograms = () => {
             <RefreshCw size={18} className={refreshing ? styles.spinning : ''} />
             {refreshing ? 'Searching...' : 'Refresh Results'}
           </button>
-        </div>
-
-        {/* Summary Stats */}
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>
-              <MapPin size={24} />
-            </div>
-            <div>
-              <div className={styles.statValue}>{data?.user_state}</div>
-              <div className={styles.statLabel}>Your State</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className={styles.filtersSection}>
-          <div className={styles.categoryFilters}>
-            <button
-              className={`${styles.filterButton} ${selectedCategory === 'all' ? styles.active : ''}`}
-              onClick={() => setSelectedCategory('all')}
-            >
-              <Filter size={16} />
-              All Programs ({data?.total_programs || 0})
-            </button>
-            <button
-              className={`${styles.filterButton} ${selectedCategory === 'coal_miner' ? styles.active : ''}`}
-              onClick={() => setSelectedCategory('coal_miner')}
-            >
-              <Award size={16} />
-              Coal Miner Specific ({data?.coal_miner_specific_programs.length || 0})
-            </button>
-            <button
-              className={`${styles.filterButton} ${selectedCategory === 'renewable' ? styles.active : ''}`}
-              onClick={() => setSelectedCategory('renewable')}
-            >
-              <Zap size={16} />
-              General Renewable ({data?.general_renewable_programs.length || 0})
-            </button>
-          </div>
         </div>
 
         {/* Programs List */}

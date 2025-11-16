@@ -86,6 +86,28 @@
   flex: 1;
 }
 
+.headerText {
+  flex: 1;
+}
+
+.stateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 2rem;
+  color: #667eea;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.stateBadge svg {
+  flex-shrink: 0;
+}
+
 .refreshButton {
   display: flex;
   align-items: center;
@@ -574,14 +596,6 @@
   .refreshButton {
     width: 100%;
     justify-content: center;
-  }
-
-  .statsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .categoryFilters {
-    flex-direction: column;
   }
 
   .filterButton {
