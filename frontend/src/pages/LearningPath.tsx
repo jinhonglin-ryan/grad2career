@@ -71,7 +71,7 @@ const LearningPath = () => {
   const [savedCareerTitle, setSavedCareerTitle] = useState<string>('');
 
   // Floating chat states
-  const [modalOpen, setModalOpen] = useState(false); // Will be set to true only if no existing path
+  const [modalOpen, setModalOpen] = useState(true);
   const [chatStage, setChatStage] = useState<0 | 1 | 2 | 3>(0);
   const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string }[]>([]);
   const [input, setInput] = useState('');
@@ -107,27 +107,24 @@ const LearningPath = () => {
   // Seed chat message after loading with typing effect
   useEffect(() => {
     if (!loading && scheduled.length === 0) {
-      // If no saved path and no career param, redirect to careers
-      if (!career && !savedCareerTitle) {
-        message.info('Please select a career path first');
-        navigate('/careers');
-        return;
+      // Only show welcome message if we have career context
+      // Don't redirect here - loadExistingPath will handle that
+      if (career || savedCareerTitle) {
+        const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
+        const welcomeMessage = 
+          `Great! We'll build a starter plan for becoming a ${careerTitle}. ` +
+          `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
+          `What does your weekly availability look like?`;
+        
+        setIsTyping(true);
+        setTimeout(() => {
+          setMessages([{ role: 'bot', text: welcomeMessage }]);
+          setIsTyping(false);
+          setChatStage(0);
+        }, 800);
       }
-
-      const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
-      const welcomeMessage = 
-        `Great! We'll build a starter plan for becoming a ${careerTitle}. ` +
-        `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
-        `What does your weekly availability look like?`;
-      
-      setIsTyping(true);
-      setTimeout(() => {
-        setMessages([{ role: 'bot', text: welcomeMessage }]);
-        setIsTyping(false);
-        setChatStage(0);
-      }, 800);
     }
-  }, [loading, scheduled.length, career, savedCareerTitle, navigate]);
+  }, [loading, scheduled.length, career, savedCareerTitle]);
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -146,13 +143,19 @@ const LearningPath = () => {
   const loadExistingPath = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Loading existing learning path...');
       const response = await api.get('/learning/learning-paths/current');
+      console.log('✅ Learning path response:', response.data);
+      
       if (response.data?.success && response.data?.data) {
         const pathData: LearningPathData = response.data.data;
+        console.log('📚 Found learning path:', pathData.id);
         setLearningPathId(pathData.id);
         
         // Merge backend data with localStorage completion status
         const videos = pathData.path_data.scheduled_videos || [];
+        console.log(`📹 Found ${videos.length} videos in learning path`);
+        
         const mergedVideos = videos.map((sv: ScheduledVideo) => {
           // Check localStorage for completion status
           const localCompleted = localStorage.getItem(`video_completed_${sv.video.videoId}`);
@@ -166,25 +169,27 @@ const LearningPath = () => {
         
         setScheduled(mergedVideos);
         setSavedCareerTitle(pathData.path_data.career_title || '');
-        
-        // Important: Keep modal closed since we have existing path
-        setModalOpen(false);
-        console.log('✅ Loaded existing learning path:', pathData.path_data.career_title);
+        console.log('✨ Learning path loaded successfully');
       } else {
-        // No existing path, show modal to create one
-        console.log('ℹ️ No existing learning path found, showing creation modal');
-        setModalOpen(true);
+        console.log('ℹ️ No existing learning path found');
+        // No existing path - check if we have career context
+        if (!career) {
+          console.log('⚠️ No career context, redirecting to careers page');
+          message.info('Please select a career path to get started');
+          setTimeout(() => navigate('/careers'), 1500);
+        }
       }
     } catch (error: any) {
-      console.error('Failed to load learning path:', error);
+      console.error('❌ Failed to load learning path:', error);
+      console.error('Error details:', error.response?.data || error.message);
       
-      // Show modal to create new path
-      setModalOpen(true);
-      
-      // If no career param, redirect
-      if (!career) {
+      // Only redirect if we have no career context to fall back on
+      if (!career && !savedCareerTitle) {
+        console.log('⚠️ No fallback career context, redirecting to careers page');
         message.info('Please select a career path to get started');
         setTimeout(() => navigate('/careers'), 1500);
+      } else {
+        console.log('ℹ️ Will use career context to create new plan');
       }
     } finally {
       setLoading(false);
@@ -209,6 +214,7 @@ const LearningPath = () => {
   const saveLearningPath = async (videos: ScheduledVideo[]) => {
     try {
       setSaving(true);
+      console.log('💾 Saving learning path...');
       
       // Prepare request body
       const requestBody: any = {
@@ -219,18 +225,33 @@ const LearningPath = () => {
       // Only include career_id if it's a valid UUID (36 characters with hyphens)
       if (career?.id && typeof career.id === 'string' && career.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
         requestBody.career_id = career.id;
+        console.log('✅ Including career_id:', career.id);
+      } else {
+        console.log('ℹ️ No valid career_id to include');
       }
       
-      console.log('Saving learning path:', requestBody);
+      console.log('📦 Request body:', {
+        career_title: requestBody.career_title,
+        career_id: requestBody.career_id || 'none',
+        video_count: videos.length
+      });
       
       const response = await api.post('/learning/learning-paths', requestBody);
+      console.log('✅ Save response:', response.data);
+      
       if (response.data?.success && response.data?.data) {
-        setLearningPathId(response.data.data.id);
+        const newPathId = response.data.data.id;
+        setLearningPathId(newPathId);
+        console.log('🎉 Learning path saved with ID:', newPathId);
         message.success('Learning plan saved successfully!');
+      } else {
+        console.warn('⚠️ Save succeeded but response format unexpected:', response.data);
+        message.warning('Learning plan may not have saved correctly');
       }
     } catch (error: any) {
-      console.error('Failed to save learning path:', error);
-      message.error('Failed to save learning plan');
+      console.error('❌ Failed to save learning path:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      message.error(`Failed to save learning plan: ${error.response?.data?.detail || error.message}`);
     } finally {
       setSaving(false);
     }
@@ -496,10 +517,14 @@ const LearningPath = () => {
       .filter((v) => v.videoId && v.url);
   };
 
-  const dateCellRender = (value: Dayjs) => {
-    const key = dateKey(value);
+  const cellRender = (current: Dayjs, info: any) => {
+    // Only render for date cells, not month cells
+    if (info.type !== 'date') return info.originNode;
+    
+    const key = dateKey(current);
     const items = itemsByDate[key] || [];
     if (items.length === 0) return null;
+    
     return (
       <ul className={styles.eventsList}>
         {items.map((item) => (
@@ -641,7 +666,7 @@ const LearningPath = () => {
             </div>
           ) : (
             <div style={{ background: '#fff', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
-              <Calendar fullscreen={false} dateCellRender={dateCellRender} />
+              <Calendar fullscreen={false} cellRender={cellRender} />
             </div>
           )}
         </section>
@@ -650,13 +675,9 @@ const LearningPath = () => {
       {/* Onboarding Modal Chat - forced before plan exists */}
       <Modal
         open={modalOpen && scheduled.length === 0 && !loading}
-        onCancel={() => {
-          setModalOpen(false);
-          // Optionally navigate back to dashboard
-          // navigate('/dashboard');
-        }}
-        closable={true}
-        maskClosable={true}
+        onCancel={() => {}}
+        closable={false}
+        maskClosable={false}
         className={styles.assistantModal}
         title={
           <div className={styles.chatTitle}>
@@ -680,17 +701,6 @@ const LearningPath = () => {
               Retry
             </Button>
           ),
-          <Button 
-            key="cancel"
-            size="large"
-            onClick={() => {
-              setModalOpen(false);
-              navigate('/dashboard');
-            }}
-            style={{ marginRight: '8px' }}
-          >
-            Cancel
-          </Button>,
           <Button 
             key="primary" 
             type="primary" 

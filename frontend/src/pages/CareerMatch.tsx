@@ -42,29 +42,25 @@ const CareerMatch = () => {
       const response = await api.get('/careers/match');
       if (response.data && response.data.careers) {
         // Transform API response to match component expectations
-        let transformedCareers = response.data.careers.map((career: any) => ({
+        const transformedCareers = response.data.careers.map((career: any) => ({
           ...career,
           // Keep all fields from API, they're already in the right format
         }));
         
-        // Sort: Solar Panel Installer first, then by match_score
-        transformedCareers = transformedCareers.sort((a: Career, b: Career) => {
-          // Solar Panel Installer always first
-          if (a.career_title.toLowerCase().includes('solar panel installer')) return -1;
-          if (b.career_title.toLowerCase().includes('solar panel installer')) return 1;
-          // Then sort by match score
-          return (b.match_score || 0) - (a.match_score || 0);
-        });
-        
-        setCareers(transformedCareers);
+        // Ensure Solar Panel Installation is always first
+        const solarCareer = solarPanelInstallationCareer;
+        const otherCareers = transformedCareers.filter(
+          (c: Career) => !c.career_title.toLowerCase().includes('solar panel installation')
+        );
+        setCareers([solarCareer, ...otherCareers]);
       } else {
-        setCareers([]);
+        setCareers([solarPanelInstallationCareer]);
       }
     } catch (error: any) {
       console.error('Error fetching careers:', error);
       if (error.response?.status === 404) {
-        // User hasn't completed assessment yet
-        setCareers([]);
+        // User hasn't completed assessment yet - still show Solar Panel Installation
+        setCareers([solarPanelInstallationCareer]);
       } else {
         // Use mock data for development/fallback
         setCareers(mockCareers);
@@ -248,8 +244,55 @@ const CareerMatch = () => {
   );
 };
 
+// Featured career - always shown first
+const solarPanelInstallationCareer: Career = {
+  id: 'solar-panel-installation-featured',
+  career_title: 'Solar Panel Installation',
+  match_score: 95,
+  salary_range: '$45,000 - $70,000',
+  growth_rate: 'Much faster than average (52% growth)',
+  local_demand_rating: 'Very High',
+  commute_distance_miles: 15,
+  commute_time_minutes: 25,
+  local_job_growth: '🌟 Rapidly growing field with high demand in Appalachian regions. Federal and state incentives are driving massive solar expansion.',
+  transferable_skills: [
+    'Electrical work',
+    'Safety training',
+    'Tool proficiency',
+    'Working at heights',
+    'Physical stamina',
+    'Blueprint reading'
+  ],
+  matching_required_skills: [
+    'Safety Protocols',
+    'Hand Tools',
+    'Physical Stamina',
+    'Electrical Basics',
+    'Problem Solving'
+  ],
+  missing_skills: [
+    'Photovoltaic (PV) Systems',
+    'Solar Array Design',
+    'NABCEP Certification',
+    'Electrical Code (NEC)',
+    'Racking Systems',
+    'Inverter Installation'
+  ],
+  description: 'Solar Panel Installation professionals install, maintain, and repair solar photovoltaic (PV) systems on residential, commercial, and industrial buildings. This fast-growing career combines electrical work with renewable energy technology. Coal miners transitioning to this field find their experience with electrical systems, safety protocols, and working in challenging conditions highly valuable. The industry offers excellent job security, competitive wages, and the opportunity to be part of the clean energy transition.',
+  category: 'Renewable Energy',
+  appalachian_states: ['West Virginia', 'Kentucky', 'Pennsylvania', 'Virginia', 'Ohio'],
+  required_certifications: [
+    'NABCEP PV Installation Professional',
+    'OSHA 30-Hour Construction',
+    'Fall Protection Certification',
+    'Electrical License (varies by state)'
+  ],
+  entry_level_education: 'High school diploma or equivalent, technical training recommended'
+};
+
 // Mock data for development (fallback)
 const mockCareers: Career[] = [
+  solarPanelInstallationCareer,
   {
     id: '1',
     career_title: 'Solar Panel Installer',

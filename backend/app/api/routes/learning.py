@@ -121,13 +121,23 @@ async def create_learning_path(
             "progress_percentage": progress
         }
         
-        # Only add career_id if it's a valid UUID
+        # Only add career_id if it's a valid UUID and exists in career_matches table
         if create_request.career_id:
             try:
                 # Validate UUID format
                 uuid.UUID(create_request.career_id)
-                learning_path_data["career_id"] = create_request.career_id
-                logger.info(f"Valid UUID for career_id: {create_request.career_id}")
+                
+                # Check if career_id exists in career_matches table
+                career_check = supabase.table("career_matches")\
+                    .select("id")\
+                    .eq("id", create_request.career_id)\
+                    .execute()
+                
+                if career_check.data and len(career_check.data) > 0:
+                    learning_path_data["career_id"] = create_request.career_id
+                    logger.info(f"Valid career_id found in career_matches: {create_request.career_id}")
+                else:
+                    logger.warning(f"career_id '{create_request.career_id}' not found in career_matches table, skipping")
             except (ValueError, AttributeError) as e:
                 # Invalid UUID, skip it
                 logger.warning(f"Invalid UUID for career_id '{create_request.career_id}': {e}")
