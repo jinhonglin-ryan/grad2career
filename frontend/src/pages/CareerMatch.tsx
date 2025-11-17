@@ -42,10 +42,20 @@ const CareerMatch = () => {
       const response = await api.get('/careers/match');
       if (response.data && response.data.careers) {
         // Transform API response to match component expectations
-        const transformedCareers = response.data.careers.map((career: any) => ({
+        let transformedCareers = response.data.careers.map((career: any) => ({
           ...career,
           // Keep all fields from API, they're already in the right format
         }));
+        
+        // Sort: Solar Panel Installer first, then by match_score
+        transformedCareers = transformedCareers.sort((a: Career, b: Career) => {
+          // Solar Panel Installer always first
+          if (a.career_title.toLowerCase().includes('solar panel installer')) return -1;
+          if (b.career_title.toLowerCase().includes('solar panel installer')) return 1;
+          // Then sort by match score
+          return (b.match_score || 0) - (a.match_score || 0);
+        });
+        
         setCareers(transformedCareers);
       } else {
         setCareers([]);
