@@ -130,7 +130,7 @@ const MiningQuestionnaire = () => {
 
       if (response.data.success) {
         toast.success(`Success! We've identified ${response.data.skill_count} transferable skills.`);
-        navigate('/careers');
+        navigate('/assessment');
       }
     } catch (error: any) {
       console.error('Error submitting questionnaire:', error);
