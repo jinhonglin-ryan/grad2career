@@ -638,9 +638,13 @@ const LearningPath = () => {
       {/* Onboarding Modal Chat - forced before plan exists */}
       <Modal
         open={modalOpen && scheduled.length === 0 && !loading}
-        onCancel={() => {}}
-        closable={false}
-        maskClosable={false}
+        onCancel={() => {
+          setModalOpen(false);
+          // Optionally navigate back to dashboard
+          // navigate('/dashboard');
+        }}
+        closable={true}
+        maskClosable={true}
         className={styles.assistantModal}
         title={
           <div className={styles.chatTitle}>
@@ -664,6 +668,17 @@ const LearningPath = () => {
               Retry
             </Button>
           ),
+          <Button 
+            key="cancel"
+            size="large"
+            onClick={() => {
+              setModalOpen(false);
+              navigate('/dashboard');
+            }}
+            style={{ marginRight: '8px' }}
+          >
+            Cancel
+          </Button>,
           <Button 
             key="primary" 
             type="primary" 
