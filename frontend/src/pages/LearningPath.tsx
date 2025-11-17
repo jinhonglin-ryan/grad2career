@@ -71,7 +71,7 @@ const LearningPath = () => {
   const [savedCareerTitle, setSavedCareerTitle] = useState<string>('');
 
   // Floating chat states
-  const [modalOpen, setModalOpen] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false); // Will be set to true only if no existing path
   const [chatStage, setChatStage] = useState<0 | 1 | 2 | 3>(0);
   const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string }[]>([]);
   const [input, setInput] = useState('');
@@ -166,10 +166,22 @@ const LearningPath = () => {
         
         setScheduled(mergedVideos);
         setSavedCareerTitle(pathData.path_data.career_title || '');
+        
+        // Important: Keep modal closed since we have existing path
+        setModalOpen(false);
+        console.log('✅ Loaded existing learning path:', pathData.path_data.career_title);
+      } else {
+        // No existing path, show modal to create one
+        console.log('ℹ️ No existing learning path found, showing creation modal');
+        setModalOpen(true);
       }
     } catch (error: any) {
       console.error('Failed to load learning path:', error);
-      // If loading fails and no career param, redirect
+      
+      // Show modal to create new path
+      setModalOpen(true);
+      
+      // If no career param, redirect
       if (!career) {
         message.info('Please select a career path to get started');
         setTimeout(() => navigate('/careers'), 1500);
