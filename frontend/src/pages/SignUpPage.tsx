@@ -13,7 +13,6 @@ const SignUpPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const { signup, googleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -27,10 +26,6 @@ const SignUpPage = () => {
     e.preventDefault();
     setError('');
 
-    if (!agreedToTerms) {
-      setError('Please agree to the Terms of Service and Privacy Policy');
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -202,21 +197,7 @@ const SignUpPage = () => {
             </div>
           </div>
 
-          <div className={styles.checkboxGroup}>
-            <input
-              type="checkbox"
-              id="terms"
-              checked={agreedToTerms}
-              onChange={(e) => setAgreedToTerms(e.target.checked)}
-            />
-            <label htmlFor="terms">
-              I agree to the{' '}
-              <span className={styles.link}>Terms of Service</span> and{' '}
-              <span className={styles.link}>Privacy Policy</span>
-            </label>
-          </div>
-
-          <button type="submit" className={styles.submitButton} disabled={loading || !agreedToTerms}>
+          <button type="submit" className={styles.submitButton} disabled={loading}>
             {loading ? (
               <>
                 <span className={styles.spinner}></span>
