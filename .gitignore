@@ -80,3 +80,5 @@ htmlcov/
 .cache/
 .temp/
 .tmp/
+backend/skillbridge-476601-10242eab401d.json
+backend/google-credentials.json

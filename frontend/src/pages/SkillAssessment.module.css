@@ -1,3 +1,81 @@
+/* --- Voice Input Styles --- */
+
+.micButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 44px; /* Ensures a good touch target */
+}
+
+.micButton:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  transform: translateY(-2px);
+}
+
+.micButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Active Recording State with Pulse Animation */
+.micButtonActive {
+  background: #fee2e2 !important; /* Force light red background */
+  color: #ef4444 !important;      /* Force red icon */
+  border-color: #fca5a5 !important;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Floating Live Transcript Bubble */
+.partialTranscript {
+  position: absolute;
+  bottom: 100%; /* Sits right on top of the input container */
+  left: 1.5rem;
+  right: 1.5rem;
+  margin-bottom: 0.5rem; /* Small gap */
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  border-bottom-left-radius: 0; /* stylistic "speech bubble" look */
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+  font-size: 0.9rem;
+  color: #4b5563;
+  z-index: 20;
+  animation: slideUpFade 0.2s ease-out;
+  pointer-events: none; /* Allows clicking through it if it obscures chat */
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .container {
   min-height: 100vh;
   background: #F7F6F3; /* Sand 50 */
@@ -240,6 +318,9 @@
   border-top: 1px solid #e5e7eb;
   display: flex;
   gap: 0.75rem;
+  /* Add these two lines: */
+  position: relative;
+  align-items: flex-end; 
 }
 
 .input {

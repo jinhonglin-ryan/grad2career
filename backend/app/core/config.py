@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 
 
 class Settings(BaseSettings):
@@ -43,6 +44,15 @@ class Settings(BaseSettings):
     # ---------- Search API (for live training search) ----------
     serper_api_key: Optional[str] = None
 
+    # ---------- Speech / Transcription ----------
+    # Path to your JSON key, read from .env via:
+    # GOOGLE_APPLICATION_CREDENTIALS=google-credentials.json
+    google_application_credentials: Optional[str] = None
+
+    # Defaults for transcription service
+    google_speech_language_code: str = "en-US"
+    google_speech_sample_rate_hz: int = 16000
+
     # ---------- General Config ----------
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -55,10 +65,11 @@ settings = Settings()
 
 
 def configure_adk_env():
-    """Applies the right environment variables so ADK can detect your credentials."""
-    import os
-
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE" if settings.google_genai_use_vertexai else "FALSE"
+    """Applies the right environment variables so ADK (and Google SDKs) can detect your credentials."""
+    # Gemini / Vertex flags
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = (
+        "TRUE" if settings.google_genai_use_vertexai else "FALSE"
+    )
 
     if settings.google_genai_use_vertexai:
         if settings.google_cloud_project:
@@ -66,3 +77,8 @@ def configure_adk_env():
         os.environ["GOOGLE_CLOUD_LOCATION"] = settings.google_cloud_location
     elif settings.google_api_key:
         os.environ["GOOGLE_API_KEY"] = settings.google_api_key
+
+    # 🔑 ***THIS IS THE IMPORTANT PART***:
+    # Forward the path from .env into the real env var that google-auth reads.
+    if settings.google_application_credentials:
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
