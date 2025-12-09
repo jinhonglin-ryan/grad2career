@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { Calendar, Badge, Input, Button, Spin, Empty, Modal, Steps, Progress, Checkbox, Tooltip, message } from 'antd';
+import { LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input, Button, Spin, Empty, Modal, Steps, Progress, Checkbox, Tooltip, message } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -72,7 +72,7 @@ const LearningPath = () => {
 
   // Floating chat states
   const [modalOpen, setModalOpen] = useState(true);
-  const [chatStage, setChatStage] = useState<0 | 1 | 2 | 3>(0);
+  const [chatStage, setChatStage] = useState<0 | 1 | 2>(0);
   const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [polling, setPolling] = useState(false);
@@ -80,6 +80,46 @@ const LearningPath = () => {
   const [agentSteps, setAgentSteps] = useState<Array<{ label?: string; text?: string; status?: string }>>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [stepsExpanded, setStepsExpanded] = useState(true);
+  
+  // Day selector state
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Calendar month navigation
+  const [currentMonth, setCurrentMonth] = useState(dayjs());
+
+  // Start a brand new plan (archive existing, reset UI, and reopen assistant)
+  const startNewPlan = async () => {
+    try {
+      // If there's an existing learning path, mark it as completed so the new one becomes current
+      if (learningPathId) {
+        try {
+          await api.patch(`/learning/learning-paths/${learningPathId}/status`, null, {
+            params: { status: 'completed' },
+          });
+        } catch (err) {
+          console.error('Failed to update existing learning path status:', err);
+          // Non-fatal: we can still create a new path; the latest active will be used
+        }
+      }
+
+      // Reset local state for a clean slate
+      setScheduled([]);
+      setLearningPathId(null);
+      setSelectedDays([]);
+      setMessages([]);
+      setAgentSteps([]);
+      setPollError(null);
+      setChatStage(0);
+      lastJobIdRef.current = null;
+
+      // Re-open onboarding modal to collect new availability and trigger agent
+      setModalOpen(true);
+    } catch (error) {
+      console.error('Error starting new plan:', error);
+      message.error('Failed to start a new learning plan. Please try again.');
+    }
+  };
   
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const lastJobIdRef = useRef<string | null>(null);
@@ -114,7 +154,7 @@ const LearningPath = () => {
         const welcomeMessage = 
           `Great! We'll build a starter plan for becoming a ${careerTitle}. ` +
           `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
-          `What does your weekly availability look like?`;
+          `Select the days you're available to study below:`;
         
         setIsTyping(true);
         setTimeout(() => {
@@ -125,6 +165,61 @@ const LearningPath = () => {
       }
     }
   }, [loading, scheduled.length, career, savedCareerTitle]);
+
+  // Toggle day selection
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
+  // Handle day selection submit
+  const handleDaysSubmit = async () => {
+    if (selectedDays.length === 0) {
+      message.warning('Please select at least one day');
+      return;
+    }
+
+    // Sort days by their index in the week
+    const sortedDays = [...selectedDays].sort((a, b) => 
+      DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
+    );
+
+    setMessages(m => [...m, { role: 'user', text: `Available days: ${sortedDays.join(', ')}` }]);
+    
+    setIsTyping(true);
+    setTimeout(async () => {
+      setMessages(m => [
+        ...m,
+        { role: 'bot', text: '🚀 Generating a tailored learning plan with videos scheduled for your available days...' },
+      ]);
+      setIsTyping(false);
+      setChatStage(1);
+      
+      // Fire real job with selected days
+      try {
+        setCreatingPlan(true);
+        setStepsExpanded(true);
+        const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
+        const resp = await api.post('/agent/ask', {
+          query: `Create a beginner ${careerTitle} learning plan with YouTube videos. User is available on these days: ${sortedDays.join(', ')}. Assign one video per available day.`,
+          user_id: 'web',
+          session_id: 'default',
+        });
+        const id = resp.data?.job_id;
+        if (!id) throw new Error('No job_id returned');
+        lastJobIdRef.current = id;
+        setPolling(true);
+        pollStatus(id);
+      } catch (e: any) {
+        setPollError(e?.message || 'Failed to start plan generation');
+        setCreatingPlan(false);
+        setPolling(false);
+      }
+    }, 500);
+  };
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -315,6 +410,14 @@ const LearningPath = () => {
     return { completed, total, percentage };
   }, [scheduled]);
 
+  // Fixed, user-friendly progress step labels for the agent pipeline
+  const AGENT_STEP_TITLES = [
+    'Finding resources online',
+    'Browsing useful videos',
+    'Creating your actionable plan',
+    'Reflecting on the solution',
+  ];
+
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -322,59 +425,11 @@ const LearningPath = () => {
     setInput('');
     setPollError(null);
 
-    // Stage 0 -> acknowledge schedule
-    if (chatStage === 0) {
+    // If generating or generated, keep chat as general feedback
+    if (chatStage >= 1) {
       setIsTyping(true);
       setTimeout(() => {
-        setMessages((m) => [
-          ...m,
-          { role: 'bot', text: `I see your schedule is: ${trimmed}. Anything else to add? (e.g., preferred learning times, specific topics)` },
-        ]);
-        setIsTyping(false);
-        setChatStage(1);
-      }, 500);
-      return;
-    }
-
-    // Stage 1 -> begin real agent call on next user input
-    if (chatStage === 1) {
-      setIsTyping(true);
-      setTimeout(async () => {
-        setMessages((m) => [
-          ...m,
-          { role: 'bot', text: 'Got it! 🚀 Generating a tailored plan with resources and videos...' },
-        ]);
-        setIsTyping(false);
-        setChatStage(2);
-        
-        // Fire real job
-        try {
-          setCreatingPlan(true);
-          setStepsExpanded(true);
-          const resp = await api.post('/agent/ask', {
-            query: `Create a beginner solar panel installer technician learning plan with 10 useful YouTube videos and resources. User note: ${trimmed}`,
-            user_id: 'web',
-            session_id: 'default',
-          });
-          const id = resp.data?.job_id;
-          if (!id) throw new Error('No job_id returned');
-          lastJobIdRef.current = id;
-          setPolling(true);
-          pollStatus(id);
-        } catch (e: any) {
-          setPollError(e?.message || 'Failed to start plan generation');
-          setCreatingPlan(false);
-          setPolling(false);
-        }
-      }, 500);
-      return;
-    }
-
-    // If already generating or generated, keep chat as general
-    if (chatStage >= 2) {
-      setIsTyping(true);
-      setTimeout(() => {
-        setMessages((m) => [...m, { role: 'bot', text: 'Working on it. I will update the plan shortly.' }]);
+        setMessages((m) => [...m, { role: 'bot', text: 'Working on your plan. I will update it shortly.' }]);
         setIsTyping(false);
       }, 300);
     }
@@ -392,7 +447,6 @@ const LearningPath = () => {
   const pollStatus = async (id: string) => {
     let done = false;
     let lastResult: AgentStatus | null = null;
-    let seen = 0;
     try {
       while (!done) {
         // eslint-disable-next-line no-await-in-loop
@@ -400,26 +454,35 @@ const LearningPath = () => {
         const data = statusResp.data;
         lastResult = data;
 
-        // stream new steps into chat with status
-        const steps = data.steps || [];
-        if (steps.length > seen) {
-          const newSteps = steps.slice(seen).map((s, idx) => ({
-            label: s.label || 'Update',
-            text: s.text || '',
-            status: seen + idx < steps.length - 1 ? 'finish' : 'process',
-          }));
-          if (newSteps.length > 0) {
-            setAgentSteps((prev) => {
-              const updated = [...prev];
-              // Mark previous steps as finished
-              for (let i = 0; i < updated.length; i++) {
-                updated[i].status = 'finish';
-              }
-              return [...updated, ...newSteps];
-            });
-          }
-          seen = steps.length;
+        // Map backend steps/status into a fixed, user-friendly 4-step pipeline
+        const backendSteps = data.steps || [];
+        let currentIndex = 0;
+
+        if (backendSteps.length > 0) {
+          currentIndex = Math.min(backendSteps.length - 1, AGENT_STEP_TITLES.length - 1);
         }
+
+        setAgentSteps(
+          AGENT_STEP_TITLES.map((title, idx) => {
+            let stepStatus: string = 'wait';
+
+            if (data.status === 'error' && idx === currentIndex) {
+              stepStatus = 'error';
+            } else if (idx < currentIndex) {
+              stepStatus = 'finish';
+            } else if (idx === currentIndex) {
+              stepStatus = data.status === 'completed' ? 'finish' : 'process';
+            } else {
+              stepStatus = 'wait';
+            }
+
+            return {
+              label: title,
+              text: '',
+              status: stepStatus,
+            };
+          })
+        );
 
         if (data.status === 'completed' || data.status === 'error') {
           // Mark all steps as finished
@@ -433,12 +496,14 @@ const LearningPath = () => {
     } catch (e: any) {
       setPollError(e?.message || 'Polling failed');
       setAgentSteps((prev) => {
-        if (prev.length > 0) {
-          const updated = [...prev];
-          updated[updated.length - 1].status = 'error';
-          return updated;
-        }
-        return prev;
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        // Mark the last visible step as error
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          status: 'error',
+        };
+        return updated;
       });
     } finally {
       setPolling(false);
@@ -453,24 +518,109 @@ const LearningPath = () => {
       setMessages((m) => [...m, { role: 'bot', text: `Error: ${res.error || 'Unknown error'}` }]);
       return;
     }
-    const videos = extractVideos(res);
+
+    // 1) Get all videos from the agent (full plan)
+    let videos = extractVideos(res);
+
+    // Fallback: if we couldn't parse videos directly, try to pull them from weekly_plan
+    if ((!videos || videos.length === 0)) {
+      const weeklyPlanFallback = extractWeeklyPlan(res);
+      if (weeklyPlanFallback?.scheduled_videos?.length) {
+        videos = weeklyPlanFallback.scheduled_videos.map((sv: any) => ({
+          videoId: sv.videoId,
+          title: sv.title,
+          url: sv.url,
+        }));
+      }
+    }
+
     if (!videos || videos.length === 0) {
       setMessages((m) => [...m, { role: 'bot', text: 'No videos found. Please try again.' }]);
       return;
     }
-    const topFive = videos.slice(0, 5);
-    const start = dayjs();
-    const plan: ScheduledVideo[] = topFive.map((v, idx) => ({
-      date: start.add(idx, 'day').format('YYYY-MM-DD'),
-      video: v,
-      completed: false,
-    }));
+
+    // 2) Determine which days of week to use (user-selected, sorted)
+    const sortedSelectedDays =
+      selectedDays.length > 0
+        ? [...selectedDays].sort(
+            (a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
+          )
+        : [...DAYS_OF_WEEK]; // Fallback: all days
+
+    const numDays = sortedSelectedDays.length || 1;
+
+    // 3) Spread videos across *multiple weeks*, one per selected day
+    const today = dayjs();
+    const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1; // Convert Sunday=0 to Monday=0
+
+    const plan: ScheduledVideo[] = videos.map((v, idx) => {
+      const dayName = sortedSelectedDays[idx % numDays];
+      const weekOffset = Math.floor(idx / numDays); // 0 for first week, 1 for second, etc.
+
+      const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
+      let daysUntil = dayIndex - todayDayIndex;
+      if (daysUntil < 0) daysUntil += 7;
+
+      // Push into future weeks as needed
+      daysUntil += weekOffset * 7;
+
+      return {
+        date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
+        video: v,
+        completed: false,
+      };
+    });
+
+    // Sort by date
+    plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+
     setScheduled(plan);
-    setChatStage(3);
-    setMessages((m) => [...m, { role: 'bot', text: 'Plan created! I placed 5 starter videos on your calendar.' }]);
-    
+    setChatStage(2);
+    setMessages((m) => [
+      ...m,
+      {
+        role: 'bot',
+        text: `Plan created! I scheduled ${plan.length} video${
+          plan.length !== 1 ? 's' : ''
+        } across multiple weeks on your selected days.`,
+      },
+    ]);
+
     // Save to backend
     await saveLearningPath(plan);
+  };
+
+  const extractWeeklyPlan = (data: AgentStatus): any | null => {
+    const tryParse = (txt?: string | null): any | null => {
+      if (!txt) return null;
+      try {
+        return JSON.parse(txt);
+      } catch {
+        const match = txt.match(/```json[\s\S]*?({[\s\S]*?})[\s\S]*?```/);
+        if (match && match[1]) {
+          try {
+            return JSON.parse(match[1]);
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+    };
+
+    const fromAnswer = tryParse(data.result?.answer);
+    if (fromAnswer?.weekly_plan) return fromAnswer.weekly_plan;
+    if (fromAnswer?.scheduled_videos) return fromAnswer; // Direct weekly plan format
+
+    if (data.steps && data.steps.length) {
+      for (let i = data.steps.length - 1; i >= 0; i -= 1) {
+        const parsed = tryParse(data.steps[i]?.text || '');
+        if (parsed?.weekly_plan) return parsed.weekly_plan;
+        if (parsed?.scheduled_videos) return parsed;
+      }
+    }
+
+    return null;
   };
 
   const extractVideos = (data: AgentStatus): VideoItem[] => {
@@ -517,54 +667,67 @@ const LearningPath = () => {
       .filter((v) => v.videoId && v.url);
   };
 
-  const cellRender = (current: Dayjs, info: any) => {
-    // Only render for date cells, not month cells
-    if (info.type !== 'date') return info.originNode;
-    
-    const key = dateKey(current);
-    const items = itemsByDate[key] || [];
-    if (items.length === 0) return null;
-    
-    return (
-      <ul className={styles.eventsList}>
-        {items.map((item) => (
-          <li 
-            key={`${item.video.videoId}-${item.date}`} 
-            className={`${styles.eventItem} ${item.completed ? styles.eventItemCompleted : ''}`}
-          >
-            <div className={styles.eventItemContent}>
-              <Checkbox
-                checked={item.completed || false}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  toggleVideoCompletion(item.video, item.date);
-                }}
-                className={styles.eventCheckbox}
-              />
-              <Tooltip title={item.completed ? 'Click to watch again' : 'Click to watch'}>
-                <span 
-                  onClick={() => navigate(`/learning/video/${item.video.videoId}`, { 
-                    state: { 
-                      video: item.video, 
-                      career,
-                      date: item.date,
-                      learningPathId: learningPathId
-                    } 
-                  })}
-                  className={styles.eventTitle}
-                >
-                  <Badge 
-                    status={item.completed ? 'success' : 'processing'} 
-                    text={item.video.title} 
-                  />
-                </span>
-              </Tooltip>
-            </div>
-          </li>
-        ))}
-      </ul>
-    );
+  // Get the month's calendar grid
+  // Monthly calendar grid for the visible month
+  const monthCalendar = useMemo(() => {
+    const startOfMonth = currentMonth.startOf('month');
+    const endOfMonth = currentMonth.endOf('month');
+
+    // Day of week for first day (0 = Sunday, 6 = Saturday)
+    const startDayOfWeek = startOfMonth.day();
+
+    const calendar: Array<{ date: Dayjs; isCurrentMonth: boolean; video: ScheduledVideo | null }> = [];
+
+    // Days from previous month to fill first week
+    for (let i = startDayOfWeek - 1; i >= 0; i -= 1) {
+      const date = startOfMonth.subtract(i + 1, 'day');
+      calendar.push({
+        date,
+        isCurrentMonth: false,
+        video: null,
+      });
+    }
+
+    // Days of current month
+    for (let day = 1; day <= endOfMonth.date(); day += 1) {
+      const date = startOfMonth.date(day);
+      const key = dateKey(date);
+      const items = itemsByDate[key] || [];
+
+      calendar.push({
+        date,
+        isCurrentMonth: true,
+        video: items.length > 0 ? items[0] : null, // show first video per day
+      });
+    }
+
+    // Fill out last week with next month days
+    const remainder = calendar.length % 7;
+    const remainingDays = remainder === 0 ? 0 : 7 - remainder;
+    if (remainingDays > 0) {
+      for (let i = 1; i <= remainingDays; i += 1) {
+        const date = endOfMonth.add(i, 'day');
+        calendar.push({
+          date,
+          isCurrentMonth: false,
+          video: null,
+        });
+      }
+    }
+
+    return calendar;
+  }, [currentMonth, itemsByDate]);
+
+  // Truncate video title
+  const truncateTitle = (title: string, maxLength: number = 35) => {
+    if (title.length <= maxLength) return title;
+    return title.substring(0, maxLength) + '...';
   };
+  
+  // Navigate months
+  const goToPrevMonth = () => setCurrentMonth((prev) => prev.subtract(1, 'month'));
+  const goToNextMonth = () => setCurrentMonth((prev) => prev.add(1, 'month'));
+  const goToToday = () => setCurrentMonth(dayjs());
 
   return (
     <div className={styles.container}>
@@ -651,7 +814,19 @@ const LearningPath = () => {
         )}
 
         <section className={styles.skillsSection}>
-          <h2>Required Skills for {career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</h2>
+          <div className={styles.skillsHeaderRow}>
+            <h2>Required Skills for {career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</h2>
+            {scheduled.length > 0 && (
+              <button
+                type="button"
+                className={styles.newPlanButton}
+                onClick={startNewPlan}
+              >
+                <RefreshCw size={16} style={{ marginRight: 6 }} />
+                Start New Plan
+              </button>
+            )}
+          </div>
           <div className={styles.skillTags}>
             {MOCK_SOLAR_SKILLS.map((s) => (
               <span key={s} className={styles.skillTag}>{s}</span>
@@ -665,8 +840,76 @@ const LearningPath = () => {
               <Empty description="No plan yet. Use the chat to generate one." />
             </div>
           ) : (
-            <div style={{ background: '#fff', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
-              <Calendar fullscreen={false} cellRender={cellRender} />
+            <div className={styles.monthlySchedule}>
+              <div className={styles.calendarHeader}>
+                <div className={styles.calendarNav}>
+                  <button onClick={goToPrevMonth} className={styles.navButton}>
+                    <ChevronLeft size={20} />
+                  </button>
+                  <h2>{currentMonth.format('MMMM YYYY')}</h2>
+                  <button onClick={goToNextMonth} className={styles.navButton}>
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+                <button onClick={goToToday} className={styles.todayButton}>
+                  Today
+                </button>
+              </div>
+              
+              {/* Day headers */}
+              <div className={styles.dayHeaders}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <div key={day} className={styles.dayHeaderCell}>
+                    {day}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Monthly calendar grid */}
+              <div className={styles.calendarGrid}>
+                {monthCalendar.map(({ date, isCurrentMonth, video }) => (
+                  <div
+                    key={date.format('YYYY-MM-DD')}
+                    className={`
+                      ${styles.calendarCell}
+                      ${!isCurrentMonth ? styles.calendarCellOtherMonth : ''}
+                      ${date.isSame(dayjs(), 'day') ? styles.calendarCellToday : ''}
+                      ${video?.completed ? styles.calendarCellCompleted : ''}
+                      ${video ? styles.calendarCellHasVideo : ''}
+                    `}
+                  >
+                    <div className={styles.cellDate}>
+                      <span className={styles.dateNumber}>{date.date()}</span>
+                    </div>
+                    {video && isCurrentMonth && (
+                      <div className={styles.cellVideo}>
+                        <Checkbox
+                          checked={video.completed || false}
+                          onChange={() => toggleVideoCompletion(video.video, video.date)}
+                          className={styles.cellCheckbox}
+                        />
+                        <Tooltip title={video.video.title}>
+                          <span
+                            className={styles.cellVideoTitle}
+                            onClick={() =>
+                              navigate(`/learning/video/${video.video.videoId}`, {
+                                state: {
+                                  video: video.video,
+                                  career,
+                                  date: video.date,
+                                  learningPathId: learningPathId,
+                                },
+                              })
+                            }
+                          >
+                            {truncateTitle(video.video.title, 25)}
+                          </span>
+                        </Tooltip>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </section>
@@ -743,7 +986,7 @@ const LearningPath = () => {
             
             {(creatingPlan || polling) && !pollError && (
               <div className={styles.botMsg}>
-                <div className={styles.botAvatar}>🤖</div>
+                <div className={styles.botAvatar}>AI</div>
                 <div className={styles.messageContent}>
                   <Spin size="small" /> 
                   <span style={{ marginLeft: '0.75rem' }}>
@@ -755,7 +998,7 @@ const LearningPath = () => {
             
             {pollError && (
               <div className={`${styles.botMsg} ${styles.errorMsg}`}>
-                <div className={styles.botAvatar}>⚠️</div>
+                <div className={styles.botAvatar}>!</div>
                 <div className={styles.messageContent}>
                   <strong>Oops! Something went wrong</strong>
                   <br />
@@ -774,7 +1017,7 @@ const LearningPath = () => {
                 onClick={() => setStepsExpanded(!stepsExpanded)}
                 style={{ cursor: 'pointer' }}
               >
-                <span>🤖 AI Progress ({agentSteps.length} steps)</span>
+                <span>AI Plan Progress ({agentSteps.length} steps)</span>
                 {stepsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </div>
               {stepsExpanded && (
@@ -797,32 +1040,58 @@ const LearningPath = () => {
           )}
         </div>
         
-        <div className={styles.chatInputRow}>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onPressEnter={handleSend}
-            placeholder={
-              chatStage === 0 
-                ? 'e.g., "I can study 2 hours on weekdays, 4 hours on weekends"' 
-                : chatStage === 1
-                ? 'e.g., "I prefer video tutorials in the evening"'
-                : 'Type your message...'
-            }
-            disabled={creatingPlan || polling || loading || isTyping}
-            size="large"
-            className={styles.chatInput}
-          />
-          <Button 
-            type="primary" 
-            onClick={handleSend} 
-            disabled={creatingPlan || polling || loading || !input.trim() || isTyping}
-            size="large"
-            className={styles.sendButton}
-          >
-            Send
-          </Button>
-        </div>
+        {/* Day selector for stage 0 */}
+        {chatStage === 0 && !creatingPlan && !polling && (
+          <div className={styles.daySelector}>
+            <div className={styles.daySelectorLabel}>Select your available days:</div>
+            <div className={styles.daysGrid}>
+              {DAYS_OF_WEEK.map((day) => (
+                <button
+                  key={day}
+                  className={`${styles.dayButton} ${selectedDays.includes(day) ? styles.dayButtonSelected : ''}`}
+                  onClick={() => toggleDay(day)}
+                  disabled={isTyping}
+                >
+                  <span className={styles.dayShort}>{day.slice(0, 3)}</span>
+                  <span className={styles.dayFull}>{day}</span>
+                </button>
+              ))}
+            </div>
+            <Button
+              type="primary"
+              size="large"
+              onClick={handleDaysSubmit}
+              disabled={selectedDays.length === 0 || isTyping}
+              className={styles.submitDaysButton}
+            >
+              Continue with {selectedDays.length} day{selectedDays.length !== 1 ? 's' : ''} selected
+            </Button>
+          </div>
+        )}
+
+        {/* Text input for later stages */}
+        {chatStage >= 1 && (
+          <div className={styles.chatInputRow}>
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPressEnter={handleSend}
+              placeholder="Type your message..."
+              disabled={creatingPlan || polling || loading || isTyping}
+              size="large"
+              className={styles.chatInput}
+            />
+            <Button 
+              type="primary" 
+              onClick={handleSend} 
+              disabled={creatingPlan || polling || loading || !input.trim() || isTyping}
+              size="large"
+              className={styles.sendButton}
+            >
+              Send
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

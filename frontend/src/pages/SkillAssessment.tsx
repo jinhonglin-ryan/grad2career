@@ -1,12 +1,29 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, LogOut, CheckCircle, RefreshCw, Sparkles, ArrowLeft, ChevronDown, ChevronUp, Target, Briefcase } from 'lucide-react';
+import { 
+  Send, 
+  LogOut, 
+  CheckCircle, 
+  RefreshCw, 
+  Sparkles, 
+  ArrowLeft, 
+  ChevronDown, 
+  ChevronUp, 
+  Target, 
+  Briefcase,
+  Mic,
+  Square
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Logo from '../components/Logo';
 import styles from './SkillAssessment.module.css';
+
+// WebSocket URL for transcription service
+const TRANSCRIPTION_WS_URL =
+  import.meta.env.VITE_TRANSCRIPTION_WS_URL || 'ws://localhost:8000/transcription/ws';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -34,6 +51,7 @@ const TURN_LABELS_FULL = {
   3: 'Electrical & Diagnostics',
   4: 'Safety, Leadership, & Compliance'
 };
+
 const SkillAssessment = () => {
   const [assessmentMode, setAssessmentMode] = useState<'choice' | 'questionnaire' | 'chat' | 'completed'>('choice');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,6 +63,15 @@ const SkillAssessment = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
+  
+  // Voice Transcription State & Refs
+  const [isRecording, setIsRecording] = useState(false);
+  const [partialTranscript, setPartialTranscript] = useState('');
+  const wsRef = useRef<WebSocket | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -63,7 +90,7 @@ const SkillAssessment = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, partialTranscript]); // Also scroll when transcript updates
 
   // Check for existing skills on mount
   useEffect(() => {
@@ -97,6 +124,138 @@ const SkillAssessment = () => {
 
     loadExistingSkills();
   }, [user?.id]);
+
+  // --- Voice Transcription Logic Start ---
+
+  // Helper: convert Float32 audio samples to 16-bit PCM
+  const floatTo16BitPCM = (input: Float32Array): ArrayBuffer => {
+    const buffer = new ArrayBuffer(input.length * 2);
+    const view = new DataView(buffer);
+    let offset = 0;
+    for (let i = 0; i < input.length; i++, offset += 2) {
+      let s = Math.max(-1, Math.min(1, input[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return buffer;
+  };
+
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+    setPartialTranscript('');
+
+    // Stop audio processing
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    // Stop mic tracks
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    // Tell server we're done, then close WS
+    if (wsRef.current) {
+      try {
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send('STOP');
+        }
+        wsRef.current.close();
+      } catch (e) {
+        console.error('Error closing transcription WebSocket', e);
+      }
+      wsRef.current = null;
+    }
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (isRecording) return;
+
+    try {
+      // Open WebSocket to backend transcription service
+      const ws = new WebSocket(TRANSCRIPTION_WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = async () => {
+        setIsRecording(true);
+        setPartialTranscript('');
+
+        // Ask for mic
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        audioContextRef.current = audioContext;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        // ScriptProcessor is deprecated but widely supported; AudioWorklet is the modern replacement 
+        // but requires a separate file or blob URL. Using ScriptProcessor for simplicity here.
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        processor.onaudioprocess = (event: AudioProcessingEvent) => {
+          const inputData = event.inputBuffer.getChannelData(0);
+          const pcmBuffer = floatTo16BitPCM(inputData);
+
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(pcmBuffer);
+          }
+        };
+
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const { transcript, is_final } = data as { transcript: string; is_final: boolean };
+
+          if (is_final) {
+            // Append final transcript into the input box
+            setInput((prev) => {
+              if (!prev) return transcript;
+              const needsSpace = prev.endsWith(' ') || transcript.startsWith(' ');
+              return prev + (needsSpace ? '' : ' ') + transcript;
+            });
+            setPartialTranscript('');
+          } else {
+            setPartialTranscript(transcript);
+          }
+        } catch (e) {
+          console.error('Error parsing transcription message', e);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.error('Transcription WebSocket error', event);
+        stopRecording();
+      };
+
+      ws.onclose = () => {
+        stopRecording();
+      };
+    } catch (error) {
+      console.error('Error starting recording', error);
+      stopRecording();
+    }
+  }, [isRecording, stopRecording, setInput]);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      stopRecording();
+    };
+  }, [stopRecording]);
+
+  // --- Voice Transcription Logic End ---
 
   // Initialize chat assessment when user selects chat mode
   const startChatAssessment = async () => {
@@ -183,6 +342,11 @@ const SkillAssessment = () => {
 
   const handleSend = async () => {
     if (!input.trim() || loading || !sessionId) return;
+
+    // If recording is active when sending, stop it
+    if (isRecording) {
+      stopRecording();
+    }
 
     const userMessage: Message = {
       role: 'user',
@@ -293,6 +457,11 @@ const SkillAssessment = () => {
     setSessionId(null);
     setExpandedSkills(new Set());
     
+    // Stop recording if active
+    if (isRecording) {
+      stopRecording();
+    }
+    
     // Start new assessment
     try {
       setInitializing(true);
@@ -322,6 +491,7 @@ const SkillAssessment = () => {
       setInitializing(false);
     }
   };
+
   // Toggle skill technical details
   const toggleSkillDetails = (index: number) => {
     setExpandedSkills(prev => {
@@ -539,208 +709,228 @@ const SkillAssessment = () => {
         {/* Chat and Sidebar Grid */}
         <div className={styles.contentGrid}>
           <div className={styles.chatContainer}>
-          <div className={styles.header}>
-            <h1>Skill Assessment</h1>
-            <p>
-              {isComplete
-                ? 'Assessment complete! Review your skill profile below.'
-                : `Turn ${currentTurn}/4: ${TURN_LABELS_FULL[currentTurn as keyof typeof TURN_LABELS_FULL]}`}
-            </p>
-            
-            {/* Progress bar */}
-            {!isComplete && (
-              <div className={styles.progressBarContainer}>
-                <div className={styles.progressBarBackground}>
-                  <div 
-                    className={styles.progressBarFill} 
-                    style={{ width: `${(currentTurn / 4) * 100}%` }}
-                  >
-                    <span className={styles.progressBarText}>{currentTurn}/4 Complete</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.messagesContainer}>
-            {initializing ? (
-              <div className={styles.loadingContainer}>
-                <div className={styles.loadingSkeleton}>
-                  <div className={styles.skeletonAvatar}></div>
-                  <div className={styles.skeletonContent}>
-                    <div className={styles.skeletonLine} style={{ width: '80%' }}></div>
-                    <div className={styles.skeletonLine} style={{ width: '60%' }}></div>
-                    <div className={styles.skeletonLine} style={{ width: '70%' }}></div>
-                  </div>
-                </div>
-                <p className={styles.loadingText}>Initializing assessment...</p>
-              </div>
-            ) : (
-              <>
-                {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`${styles.message} ${
-                      message.role === 'user' ? styles.userMessage : styles.assistantMessage
-                    }`}
-                  >
-                    <div className={styles.messageContent}>{message.content}</div>
-                    <div className={styles.messageTime}>
-                      {message.timestamp.toLocaleTimeString()}
+            <div className={styles.header}>
+              <h1>Skill Assessment</h1>
+              <p>
+                {isComplete
+                  ? 'Assessment complete! Review your skill profile below.'
+                  : `Turn ${currentTurn}/4: ${TURN_LABELS_FULL[currentTurn as keyof typeof TURN_LABELS_FULL]}`}
+              </p>
+              
+              {/* Progress bar */}
+              {!isComplete && (
+                <div className={styles.progressBarContainer}>
+                  <div className={styles.progressBarBackground}>
+                    <div 
+                      className={styles.progressBarFill} 
+                      style={{ width: `${(currentTurn / 4) * 100}%` }}
+                    >
+                      <span className={styles.progressBarText}>{currentTurn}/4 Complete</span>
                     </div>
                   </div>
-                ))}
-                {loading && (
-                  <div className={`${styles.message} ${styles.assistantMessage}`}>
-                    <div className={styles.messageContent}>
-                      <div className={styles.typing}>
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.messagesContainer}>
+              {initializing ? (
+                <div className={styles.loadingContainer}>
+                  <div className={styles.loadingSkeleton}>
+                    <div className={styles.skeletonAvatar}></div>
+                    <div className={styles.skeletonContent}>
+                      <div className={styles.skeletonLine} style={{ width: '80%' }}></div>
+                      <div className={styles.skeletonLine} style={{ width: '60%' }}></div>
+                      <div className={styles.skeletonLine} style={{ width: '70%' }}></div>
+                    </div>
+                  </div>
+                  <p className={styles.loadingText}>Initializing assessment...</p>
+                </div>
+              ) : (
+                <>
+                  {messages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`${styles.message} ${
+                        message.role === 'user' ? styles.userMessage : styles.assistantMessage
+                      }`}
+                    >
+                      <div className={styles.messageContent}>{message.content}</div>
+                      <div className={styles.messageTime}>
+                        {message.timestamp.toLocaleTimeString()}
                       </div>
                     </div>
+                  ))}
+                  {loading && (
+                    <div className={`${styles.message} ${styles.assistantMessage}`}>
+                      <div className={styles.messageContent}>
+                        <div className={styles.typing}>
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+
+            {!isComplete && (
+              <div className={styles.inputContainer}>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message or use the mic..."
+                  className={styles.input}
+                  rows={3}
+                  disabled={loading || initializing}
+                  aria-label="Message input"
+                />
+
+                {/* Live partial transcript while user is speaking */}
+                {partialTranscript && (
+                  <div className={styles.partialTranscript}>
+                    🎙 {partialTranscript}
                   </div>
                 )}
-                <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
 
-          {!isComplete && (
-            <div className={styles.inputContainer}>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your message..."
-                className={styles.input}
-                rows={3}
-                disabled={loading || initializing}
-                aria-label="Message input"
-              />
-              <button
-                onClick={handleSend}
-                className={styles.sendButton}
-                disabled={!input.trim() || loading || initializing}
-                aria-label="Send message"
-              >
-                <Send size={20} />
-              </button>
-            </div>
-          )}
+                {/* Mic Button */}
+                <button
+                  type="button"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`${styles.micButton} ${isRecording ? styles.micButtonActive : ''}`}
+                  disabled={loading || initializing}
+                  title={isRecording ? 'Stop recording' : 'Start voice input'}
+                  aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                >
+                  {isRecording ? <Square size={18} /> : <Mic size={18} />}
+                </button>
+
+                <button
+                  onClick={handleSend}
+                  className={styles.sendButton}
+                  disabled={!input.trim() || loading || initializing}
+                  aria-label="Send message"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Skill Profile Sidebar - Always visible, shows real-time updates */}
           <div className={styles.sidebar}>
-          <div className={styles.sidebarHeader}>
-            <h2>Your Skills</h2>
-            {skillProfile && skillProfile.extracted_skills.length > 0 && (
-              <button onClick={handleRedoAssessment} className={styles.redoButton} title="Start a new assessment">
-                <RefreshCw size={16} />
-              </button>
-            )}
-          </div>
-          
-          {skillProfile && skillProfile.extracted_skills && skillProfile.extracted_skills.length > 0 ? (
-            <>
-            <div className={styles.skillsSummary}>
-              <div className={styles.summaryBadge}>
-                <Sparkles size={16} />
-                <span>{skillProfile.extracted_skills.length} Skills Identified</span>
-              </div>
-            </div>
-
-            <div className={styles.skillSection}>
-              <h3>Job Title</h3>
-              <p className={styles.jobTitle}>{skillProfile?.raw_job_title || 'Not specified'}</p>
-            </div>
-
-            <div className={styles.skillSection}>
-              <h3>Extracted Skills</h3>
-              {skillProfile.extracted_skills.map((skill, index) => {
-                const isExpanded = expandedSkills.has(index);
-                return (
-                  <div key={index} className={styles.skillCard}>
-                    <div className={styles.skillCategory}>{skill.category}</div>
-                    <div className={styles.skillPhrase}>"{skill.user_phrase}"</div>
-                    
-                    {/* Toggle technical details button */}
-                    <button 
-                      onClick={() => toggleSkillDetails(index)}
-                      className={styles.toggleDetailsButton}
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp size={16} />
-                          <span>Hide Technical Details</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={16} />
-                          <span>Show Technical Details ({skill.onet_task_codes.length} O*NET codes)</span>
-                        </>
-                      )}
-                    </button>
-                    
-                    {/* Collapsible O*NET codes */}
-                    {isExpanded && (
-                      <div className={styles.onetCodes}>
-                        <strong>O*NET Task Codes:</strong>
-                        <ul>
-                          {skill.onet_task_codes.map((code, codeIndex) => (
-                            <li key={codeIndex} className={styles.onetCode}>
-                              {code}
-                            </li>
-                          ))}
-                        </ul>
-                        <p className={styles.onetExplanation}>
-                          These are standardized occupation codes used to map skills to career pathways.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Action Buttons - show when not actively in assessment */}
-            {(!sessionId || isComplete) && (
-              <div className={styles.actionSection}>
-                <button 
-                  onClick={handleSaveAndFindCareers} 
-                  className={styles.primaryActionButton}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw size={18} className={styles.spinning} />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      {isComplete ? <CheckCircle size={18} /> : <Briefcase size={18} />}
-                      {isComplete ? 'Save & Find Careers' : 'Find Matching Careers'}
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-            </>
-          ) : (
-            <div className={styles.emptySkillsState}>
-              <Sparkles className={styles.emptyIcon} size={48} />
-              <p className={styles.emptyText}>
-                {sessionId 
-                  ? 'Your skills will appear here as you progress through the assessment...'
-                  : 'Start the assessment to identify your skills'}
-              </p>
-              {!sessionId && !skillProfile && (
-                <button onClick={handleRedoAssessment} className={styles.startButton}>
-                  Start Assessment
+            <div className={styles.sidebarHeader}>
+              <h2>Your Skills</h2>
+              {skillProfile && skillProfile.extracted_skills.length > 0 && (
+                <button onClick={handleRedoAssessment} className={styles.redoButton} title="Start a new assessment">
+                  <RefreshCw size={16} />
                 </button>
               )}
             </div>
-          )}
+            
+            {skillProfile && skillProfile.extracted_skills && skillProfile.extracted_skills.length > 0 ? (
+              <>
+                <div className={styles.skillsSummary}>
+                  <div className={styles.summaryBadge}>
+                    <Sparkles size={16} />
+                    <span>{skillProfile.extracted_skills.length} Skills Identified</span>
+                  </div>
+                </div>
+
+                <div className={styles.skillSection}>
+                  <h3>Job Title</h3>
+                  <p className={styles.jobTitle}>{skillProfile?.raw_job_title || 'Not specified'}</p>
+                </div>
+
+                <div className={styles.skillSection}>
+                  <h3>Extracted Skills</h3>
+                  {skillProfile.extracted_skills.map((skill, index) => {
+                    const isExpanded = expandedSkills.has(index);
+                    return (
+                      <div key={index} className={styles.skillCard}>
+                        <div className={styles.skillCategory}>{skill.category}</div>
+                        <div className={styles.skillPhrase}>"{skill.user_phrase}"</div>
+                        
+                        {/* Toggle technical details button */}
+                        <button 
+                          onClick={() => toggleSkillDetails(index)}
+                          className={styles.toggleDetailsButton}
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp size={16} />
+                              <span>Hide Technical Details</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={16} />
+                              <span>Show Technical Details ({skill.onet_task_codes.length} O*NET codes)</span>
+                            </>
+                          )}
+                        </button>
+                        
+                        {/* Collapsible O*NET codes */}
+                        {isExpanded && (
+                          <div className={styles.onetCodes}>
+                            <strong>O*NET Task Codes:</strong>
+                            <ul>
+                              {skill.onet_task_codes.map((code, codeIndex) => (
+                                <li key={codeIndex} className={styles.onetCode}>
+                                  {code}
+                                </li>
+                              ))}
+                            </ul>
+                            <p className={styles.onetExplanation}>
+                              These are standardized occupation codes used to map skills to career pathways.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action Buttons - show when not actively in assessment */}
+                {(!sessionId || isComplete) && (
+                  <div className={styles.actionSection}>
+                    <button 
+                      onClick={handleSaveAndFindCareers} 
+                      className={styles.primaryActionButton}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <>
+                          <RefreshCw size={18} className={styles.spinning} />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          {isComplete ? <CheckCircle size={18} /> : <Briefcase size={18} />}
+                          {isComplete ? 'Save & Find Careers' : 'Find Matching Careers'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className={styles.emptySkillsState}>
+                <Sparkles className={styles.emptyIcon} size={48} />
+                <p className={styles.emptyText}>
+                  {sessionId 
+                    ? 'Your skills will appear here as you progress through the assessment...'
+                    : 'Start the assessment to identify your skills'}
+                </p>
+                {!sessionId && !skillProfile && (
+                  <button onClick={handleRedoAssessment} className={styles.startButton}>
+                    Start Assessment
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

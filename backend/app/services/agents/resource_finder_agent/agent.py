@@ -9,8 +9,7 @@ from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from google.adk.tools import google_search
-from .schema import FinalPlan
-from app.services.external_apis import careeronestop_search_training
+from .schema import FinalPlan, WeeklyPlan
 
 
 logger = logging.getLogger("resource_finder")
@@ -187,46 +186,58 @@ youtube_agent = LlmAgent(
     output_key="youtube_selection",
 )
 
-training_agent = LlmAgent(
-    name="TrainingProgramFinderAgent",
+plan_agent = LlmAgent(
+    name="WeeklyPlanAgent",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a training program finder. Given a career/occupation and location (ZIP code), "
-        "use the search_training_programs tool to find local training programs, certifications, and licenses. "
+        "You are a learning schedule planner. You have access to:\n"
+        "- youtube_selection: contains 'playlist' and 'videos' from the YouTube search\n"
+        "- The user's available days for studying (provided in the conversation)\n\n"
+        "Your task is to assign one video per available day. Match videos to days in order.\n"
+        "For example, if user is available Monday, Wednesday, Friday and has 5 videos, "
+        "assign video 1 to Monday, video 2 to Wednesday, video 3 to Friday, then repeat the cycle.\n\n"
         "Return ONLY JSON in this schema:\n"
-        "{ 'status': 'success' | 'error', 'programs': [...], 'count': int, 'error_message'?: str }.\n"
-        "If the user query mentions a location or ZIP code, use it. Otherwise, ask for location or skip training programs."
+        "{\n"
+        "  'available_days': ['Monday', 'Wednesday', 'Friday'],\n"
+        "  'scheduled_videos': [\n"
+        "    {'videoId': str, 'title': str, 'url': str, 'day_of_week': 'Monday', 'day_index': 0},\n"
+        "    {'videoId': str, 'title': str, 'url': str, 'day_of_week': 'Wednesday', 'day_index': 2},\n"
+        "    ...\n"
+        "  ]\n"
+        "}\n"
+        "day_index values: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday"
     ),
-    description="Finds local training programs and certifications for a career.",
-    tools=[search_training_programs],
-    output_key="training_programs",
+    description="Assigns videos to user's available days of the week.",
+    output_schema=WeeklyPlan,
+    output_key="weekly_plan",
 )
 
 refine_agent = LlmAgent(
     name="RefineCurationAgent",
     model="gemini-2.5-flash",
     instruction=(
-        "Combine the web search, YouTube selection, and training programs into a clean, concise curated learning plan. "
+        "Combine the web search, YouTube selection, weekly plan, and training programs into a clean, concise curated learning plan. "
         "When creating the plan, consider:\n"
-        "- User's availability constraints (travel distance, scheduling preferences, weekly hours)\n"
+        "- User's available days for studying (from weekly_plan)\n"
+        "- The video-to-day assignments already made by the plan agent\n"
         "- Selected training programs the user wants to participate in\n"
-        "- Schedule training programs in the calendar based on their start dates and user availability\n"
         "Return ONLY JSON matching the output schema EXACTLY (no extra keys, no comments, no prose). "
         "Do NOT include any properties not defined in the schema. "
-        "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'resources': [...], 'training_programs': [...] }. "
+        "Success example: { 'status': 'success', 'playlist': {...}, 'videos': [...], 'weekly_plan': {...}, 'resources': [...], 'training_programs': [...] }. "
         "Failure example: { 'status': 'error', 'error_message': '...'}.\n\n"
         "Context variables (use if available in memory; do NOT echo verbatim):\n"
         "- search_results\n"
         "- youtube_selection\n"
+        "- weekly_plan\n"
         "- training_programs"
     ),
-    description="Refines results into a final JSON learning plan with videos, resources, and training programs.",
+    description="Refines results into a final JSON learning plan with videos, weekly schedule, resources, and training programs.",
     output_schema=FinalPlan,
     output_key="final_plan",
 )
 
 root_agent = SequentialAgent(
     name="ResourceFinderPipeline",
-    sub_agents=[search_agent, youtube_agent, training_agent, refine_agent],
-    description="Searches web, finds YouTube playlists, finds training programs, and refines into a curated plan.",
+    sub_agents=[search_agent, youtube_agent, plan_agent, refine_agent],
+    description="Searches web, finds YouTube playlists, assigns videos to days, and refines into a curated plan.",
 )
