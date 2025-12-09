@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from app.core.supabase import get_supabase
 from supabase import Client
 import uuid
@@ -275,10 +275,32 @@ async def update_video_progress(
             .execute()
         
         # Also save to learning_progress table for detailed tracking
+        # Calculate week number based on the scheduled date relative to the first scheduled video
+        week_number = 1
+        try:
+            # Find the earliest scheduled video date in this learning path
+            earliest_date: Optional[date] = None
+            for sv in scheduled_videos:
+                try:
+                    sv_date = date.fromisoformat(str(sv.get("date", ""))[:10])
+                except Exception:
+                    continue
+                if earliest_date is None or sv_date < earliest_date:
+                    earliest_date = sv_date
+
+            # Parse the date of the video we just updated
+            if earliest_date is not None:
+                current_date = date.fromisoformat(update_request.date[:10])
+                delta_days = (current_date - earliest_date).days
+                if delta_days >= 0:
+                    week_number = delta_days // 7 + 1
+        except Exception as e:
+            logger.warning(f"Failed to calculate week_number, defaulting to 1: {e}")
+
         progress_data = {
             "user_id": user_id,
             "learning_path_id": path_id,
-            "week_number": 1,  # TODO: Calculate actual week number
+            "week_number": week_number,
             "resource_id": update_request.video_id,
             "completed": update_request.completed,
             "completed_at": datetime.utcnow().isoformat() if update_request.completed else None,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { Calendar, Badge, Input, Button, Spin, Empty, Modal, Steps, Progress, Checkbox, Tooltip, message } from 'antd';
+import { LogOut, BookOpen, Clock, CheckCircle, MessageSquare, ArrowLeft, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input, Button, Spin, Empty, Modal, Steps, Progress, Checkbox, Tooltip, message } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -84,6 +84,42 @@ const LearningPath = () => {
   // Day selector state
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Calendar month navigation
+  const [currentMonth, setCurrentMonth] = useState(dayjs());
+
+  // Start a brand new plan (archive existing, reset UI, and reopen assistant)
+  const startNewPlan = async () => {
+    try {
+      // If there's an existing learning path, mark it as completed so the new one becomes current
+      if (learningPathId) {
+        try {
+          await api.patch(`/learning/learning-paths/${learningPathId}/status`, null, {
+            params: { status: 'completed' },
+          });
+        } catch (err) {
+          console.error('Failed to update existing learning path status:', err);
+          // Non-fatal: we can still create a new path; the latest active will be used
+        }
+      }
+
+      // Reset local state for a clean slate
+      setScheduled([]);
+      setLearningPathId(null);
+      setSelectedDays([]);
+      setMessages([]);
+      setAgentSteps([]);
+      setPollError(null);
+      setChatStage(0);
+      lastJobIdRef.current = null;
+
+      // Re-open onboarding modal to collect new availability and trigger agent
+      setModalOpen(true);
+    } catch (error) {
+      console.error('Error starting new plan:', error);
+      message.error('Failed to start a new learning plan. Please try again.');
+    }
+  };
   
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const lastJobIdRef = useRef<string | null>(null);
@@ -464,75 +500,74 @@ const LearningPath = () => {
       setMessages((m) => [...m, { role: 'bot', text: `Error: ${res.error || 'Unknown error'}` }]);
       return;
     }
-    
-    // Try to extract weekly plan first, fallback to regular videos
-    const weeklyPlan = extractWeeklyPlan(res);
-    let plan: ScheduledVideo[] = [];
-    
-    if (weeklyPlan && weeklyPlan.scheduled_videos && weeklyPlan.scheduled_videos.length > 0) {
-      // Use weekly plan with day assignments
-      const today = dayjs();
-      const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1; // Convert Sunday=0 to Monday=0 index
-      
-      plan = weeklyPlan.scheduled_videos.map((sv: any) => {
-        // Calculate the date for this day of the week
-        const dayIndex = sv.day_index;
-        let daysUntil = dayIndex - todayDayIndex;
-        if (daysUntil < 0) daysUntil += 7; // If day passed this week, schedule for next week
-        
-        return {
-          date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
-          video: {
-            videoId: sv.videoId,
-            title: sv.title,
-            url: sv.url,
-          },
-          completed: false,
-        };
-      });
-      
-      // Sort by date
-      plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
-    } else {
-      // Fallback to regular video extraction
-      const videos = extractVideos(res);
-      if (!videos || videos.length === 0) {
-        setMessages((m) => [...m, { role: 'bot', text: 'No videos found. Please try again.' }]);
-        return;
+
+    // 1) Get all videos from the agent (full plan)
+    let videos = extractVideos(res);
+
+    // Fallback: if we couldn't parse videos directly, try to pull them from weekly_plan
+    if ((!videos || videos.length === 0)) {
+      const weeklyPlanFallback = extractWeeklyPlan(res);
+      if (weeklyPlanFallback?.scheduled_videos?.length) {
+        videos = weeklyPlanFallback.scheduled_videos.map((sv: any) => ({
+          videoId: sv.videoId,
+          title: sv.title,
+          url: sv.url,
+        }));
       }
-      
-      // Use selected days to schedule videos
-      const today = dayjs();
-      const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1;
-      const sortedSelectedDays = [...selectedDays].sort((a, b) => 
-        DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
-      );
-      
-      plan = videos.slice(0, sortedSelectedDays.length).map((v, idx) => {
-        const dayName = sortedSelectedDays[idx % sortedSelectedDays.length];
-        const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
-        let daysUntil = dayIndex - todayDayIndex;
-        if (daysUntil < 0) daysUntil += 7;
-        
-        return {
-          date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
-          video: v,
-          completed: false,
-        };
-      });
-      
-      plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
     }
-    
-    if (plan.length === 0) {
+
+    if (!videos || videos.length === 0) {
       setMessages((m) => [...m, { role: 'bot', text: 'No videos found. Please try again.' }]);
       return;
     }
-    
+
+    // 2) Determine which days of week to use (user-selected, sorted)
+    const sortedSelectedDays =
+      selectedDays.length > 0
+        ? [...selectedDays].sort(
+            (a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
+          )
+        : [...DAYS_OF_WEEK]; // Fallback: all days
+
+    const numDays = sortedSelectedDays.length || 1;
+
+    // 3) Spread videos across *multiple weeks*, one per selected day
+    const today = dayjs();
+    const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1; // Convert Sunday=0 to Monday=0
+
+    const plan: ScheduledVideo[] = videos.map((v, idx) => {
+      const dayName = sortedSelectedDays[idx % numDays];
+      const weekOffset = Math.floor(idx / numDays); // 0 for first week, 1 for second, etc.
+
+      const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
+      let daysUntil = dayIndex - todayDayIndex;
+      if (daysUntil < 0) daysUntil += 7;
+
+      // Push into future weeks as needed
+      daysUntil += weekOffset * 7;
+
+      return {
+        date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
+        video: v,
+        completed: false,
+      };
+    });
+
+    // Sort by date
+    plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+
     setScheduled(plan);
     setChatStage(2);
-    setMessages((m) => [...m, { role: 'bot', text: `Plan created! I scheduled ${plan.length} videos on your selected days.` }]);
-    
+    setMessages((m) => [
+      ...m,
+      {
+        role: 'bot',
+        text: `Plan created! I scheduled ${plan.length} video${
+          plan.length !== 1 ? 's' : ''
+        } across multiple weeks on your selected days.`,
+      },
+    ]);
+
     // Save to backend
     await saveLearningPath(plan);
   };
@@ -614,54 +649,67 @@ const LearningPath = () => {
       .filter((v) => v.videoId && v.url);
   };
 
-  const cellRender = (current: Dayjs, info: any) => {
-    // Only render for date cells, not month cells
-    if (info.type !== 'date') return info.originNode;
-    
-    const key = dateKey(current);
-    const items = itemsByDate[key] || [];
-    if (items.length === 0) return null;
-    
-    return (
-      <ul className={styles.eventsList}>
-        {items.map((item) => (
-          <li 
-            key={`${item.video.videoId}-${item.date}`} 
-            className={`${styles.eventItem} ${item.completed ? styles.eventItemCompleted : ''}`}
-          >
-            <div className={styles.eventItemContent}>
-              <Checkbox
-                checked={item.completed || false}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  toggleVideoCompletion(item.video, item.date);
-                }}
-                className={styles.eventCheckbox}
-              />
-              <Tooltip title={item.completed ? 'Click to watch again' : 'Click to watch'}>
-                <span 
-                  onClick={() => navigate(`/learning/video/${item.video.videoId}`, { 
-                    state: { 
-                      video: item.video, 
-                      career,
-                      date: item.date,
-                      learningPathId: learningPathId
-                    } 
-                  })}
-                  className={styles.eventTitle}
-                >
-                  <Badge 
-                    status={item.completed ? 'success' : 'processing'} 
-                    text={item.video.title} 
-                  />
-                </span>
-              </Tooltip>
-            </div>
-          </li>
-        ))}
-      </ul>
-    );
+  // Get the month's calendar grid
+  // Monthly calendar grid for the visible month
+  const monthCalendar = useMemo(() => {
+    const startOfMonth = currentMonth.startOf('month');
+    const endOfMonth = currentMonth.endOf('month');
+
+    // Day of week for first day (0 = Sunday, 6 = Saturday)
+    const startDayOfWeek = startOfMonth.day();
+
+    const calendar: Array<{ date: Dayjs; isCurrentMonth: boolean; video: ScheduledVideo | null }> = [];
+
+    // Days from previous month to fill first week
+    for (let i = startDayOfWeek - 1; i >= 0; i -= 1) {
+      const date = startOfMonth.subtract(i + 1, 'day');
+      calendar.push({
+        date,
+        isCurrentMonth: false,
+        video: null,
+      });
+    }
+
+    // Days of current month
+    for (let day = 1; day <= endOfMonth.date(); day += 1) {
+      const date = startOfMonth.date(day);
+      const key = dateKey(date);
+      const items = itemsByDate[key] || [];
+
+      calendar.push({
+        date,
+        isCurrentMonth: true,
+        video: items.length > 0 ? items[0] : null, // show first video per day
+      });
+    }
+
+    // Fill out last week with next month days
+    const remainder = calendar.length % 7;
+    const remainingDays = remainder === 0 ? 0 : 7 - remainder;
+    if (remainingDays > 0) {
+      for (let i = 1; i <= remainingDays; i += 1) {
+        const date = endOfMonth.add(i, 'day');
+        calendar.push({
+          date,
+          isCurrentMonth: false,
+          video: null,
+        });
+      }
+    }
+
+    return calendar;
+  }, [currentMonth, itemsByDate]);
+
+  // Truncate video title
+  const truncateTitle = (title: string, maxLength: number = 35) => {
+    if (title.length <= maxLength) return title;
+    return title.substring(0, maxLength) + '...';
   };
+  
+  // Navigate months
+  const goToPrevMonth = () => setCurrentMonth((prev) => prev.subtract(1, 'month'));
+  const goToNextMonth = () => setCurrentMonth((prev) => prev.add(1, 'month'));
+  const goToToday = () => setCurrentMonth(dayjs());
 
   return (
     <div className={styles.container}>
@@ -748,7 +796,19 @@ const LearningPath = () => {
         )}
 
         <section className={styles.skillsSection}>
-          <h2>Required Skills for {career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</h2>
+          <div className={styles.skillsHeaderRow}>
+            <h2>Required Skills for {career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</h2>
+            {scheduled.length > 0 && (
+              <button
+                type="button"
+                className={styles.newPlanButton}
+                onClick={startNewPlan}
+              >
+                <RefreshCw size={16} style={{ marginRight: 6 }} />
+                Start New Plan
+              </button>
+            )}
+          </div>
           <div className={styles.skillTags}>
             {MOCK_SOLAR_SKILLS.map((s) => (
               <span key={s} className={styles.skillTag}>{s}</span>
@@ -762,8 +822,76 @@ const LearningPath = () => {
               <Empty description="No plan yet. Use the chat to generate one." />
             </div>
           ) : (
-            <div style={{ background: '#fff', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
-              <Calendar fullscreen={false} cellRender={cellRender} />
+            <div className={styles.monthlySchedule}>
+              <div className={styles.calendarHeader}>
+                <div className={styles.calendarNav}>
+                  <button onClick={goToPrevMonth} className={styles.navButton}>
+                    <ChevronLeft size={20} />
+                  </button>
+                  <h2>{currentMonth.format('MMMM YYYY')}</h2>
+                  <button onClick={goToNextMonth} className={styles.navButton}>
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+                <button onClick={goToToday} className={styles.todayButton}>
+                  Today
+                </button>
+              </div>
+              
+              {/* Day headers */}
+              <div className={styles.dayHeaders}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <div key={day} className={styles.dayHeaderCell}>
+                    {day}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Monthly calendar grid */}
+              <div className={styles.calendarGrid}>
+                {monthCalendar.map(({ date, isCurrentMonth, video }) => (
+                  <div
+                    key={date.format('YYYY-MM-DD')}
+                    className={`
+                      ${styles.calendarCell}
+                      ${!isCurrentMonth ? styles.calendarCellOtherMonth : ''}
+                      ${date.isSame(dayjs(), 'day') ? styles.calendarCellToday : ''}
+                      ${video?.completed ? styles.calendarCellCompleted : ''}
+                      ${video ? styles.calendarCellHasVideo : ''}
+                    `}
+                  >
+                    <div className={styles.cellDate}>
+                      <span className={styles.dateNumber}>{date.date()}</span>
+                    </div>
+                    {video && isCurrentMonth && (
+                      <div className={styles.cellVideo}>
+                        <Checkbox
+                          checked={video.completed || false}
+                          onChange={() => toggleVideoCompletion(video.video, video.date)}
+                          className={styles.cellCheckbox}
+                        />
+                        <Tooltip title={video.video.title}>
+                          <span
+                            className={styles.cellVideoTitle}
+                            onClick={() =>
+                              navigate(`/learning/video/${video.video.videoId}`, {
+                                state: {
+                                  video: video.video,
+                                  career,
+                                  date: video.date,
+                                  learningPathId: learningPathId,
+                                },
+                              })
+                            }
+                          >
+                            {truncateTitle(video.video.title, 25)}
+                          </span>
+                        </Tooltip>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </section>
