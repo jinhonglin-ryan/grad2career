@@ -410,6 +410,14 @@ const LearningPath = () => {
     return { completed, total, percentage };
   }, [scheduled]);
 
+  // Fixed, user-friendly progress step labels for the agent pipeline
+  const AGENT_STEP_TITLES = [
+    'Finding resources online',
+    'Browsing useful videos',
+    'Creating your actionable plan',
+    'Reflecting on the solution',
+  ];
+
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -439,7 +447,6 @@ const LearningPath = () => {
   const pollStatus = async (id: string) => {
     let done = false;
     let lastResult: AgentStatus | null = null;
-    let seen = 0;
     try {
       while (!done) {
         // eslint-disable-next-line no-await-in-loop
@@ -447,26 +454,35 @@ const LearningPath = () => {
         const data = statusResp.data;
         lastResult = data;
 
-        // stream new steps into chat with status
-        const steps = data.steps || [];
-        if (steps.length > seen) {
-          const newSteps = steps.slice(seen).map((s, idx) => ({
-            label: s.label || 'Update',
-            text: s.text || '',
-            status: seen + idx < steps.length - 1 ? 'finish' : 'process',
-          }));
-          if (newSteps.length > 0) {
-            setAgentSteps((prev) => {
-              const updated = [...prev];
-              // Mark previous steps as finished
-              for (let i = 0; i < updated.length; i++) {
-                updated[i].status = 'finish';
-              }
-              return [...updated, ...newSteps];
-            });
-          }
-          seen = steps.length;
+        // Map backend steps/status into a fixed, user-friendly 4-step pipeline
+        const backendSteps = data.steps || [];
+        let currentIndex = 0;
+
+        if (backendSteps.length > 0) {
+          currentIndex = Math.min(backendSteps.length - 1, AGENT_STEP_TITLES.length - 1);
         }
+
+        setAgentSteps(
+          AGENT_STEP_TITLES.map((title, idx) => {
+            let stepStatus: string = 'wait';
+
+            if (data.status === 'error' && idx === currentIndex) {
+              stepStatus = 'error';
+            } else if (idx < currentIndex) {
+              stepStatus = 'finish';
+            } else if (idx === currentIndex) {
+              stepStatus = data.status === 'completed' ? 'finish' : 'process';
+            } else {
+              stepStatus = 'wait';
+            }
+
+            return {
+              label: title,
+              text: '',
+              status: stepStatus,
+            };
+          })
+        );
 
         if (data.status === 'completed' || data.status === 'error') {
           // Mark all steps as finished
@@ -480,12 +496,14 @@ const LearningPath = () => {
     } catch (e: any) {
       setPollError(e?.message || 'Polling failed');
       setAgentSteps((prev) => {
-        if (prev.length > 0) {
-          const updated = [...prev];
-          updated[updated.length - 1].status = 'error';
-          return updated;
-        }
-        return prev;
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        // Mark the last visible step as error
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          status: 'error',
+        };
+        return updated;
       });
     } finally {
       setPolling(false);
@@ -968,7 +986,7 @@ const LearningPath = () => {
             
             {(creatingPlan || polling) && !pollError && (
               <div className={styles.botMsg}>
-                <div className={styles.botAvatar}>🤖</div>
+                <div className={styles.botAvatar}>AI</div>
                 <div className={styles.messageContent}>
                   <Spin size="small" /> 
                   <span style={{ marginLeft: '0.75rem' }}>
@@ -980,7 +998,7 @@ const LearningPath = () => {
             
             {pollError && (
               <div className={`${styles.botMsg} ${styles.errorMsg}`}>
-                <div className={styles.botAvatar}>⚠️</div>
+                <div className={styles.botAvatar}>!</div>
                 <div className={styles.messageContent}>
                   <strong>Oops! Something went wrong</strong>
                   <br />
@@ -999,7 +1017,7 @@ const LearningPath = () => {
                 onClick={() => setStepsExpanded(!stepsExpanded)}
                 style={{ cursor: 'pointer' }}
               >
-                <span>🤖 AI Progress ({agentSteps.length} steps)</span>
+                <span>AI Plan Progress ({agentSteps.length} steps)</span>
                 {stepsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </div>
               {stepsExpanded && (
