@@ -72,7 +72,7 @@ const LearningPath = () => {
 
   // Floating chat states
   const [modalOpen, setModalOpen] = useState(true);
-  const [chatStage, setChatStage] = useState<0 | 1 | 2 | 3>(0);
+  const [chatStage, setChatStage] = useState<0 | 1 | 2>(0);
   const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [polling, setPolling] = useState(false);
@@ -80,6 +80,10 @@ const LearningPath = () => {
   const [agentSteps, setAgentSteps] = useState<Array<{ label?: string; text?: string; status?: string }>>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [stepsExpanded, setStepsExpanded] = useState(true);
+  
+  // Day selector state
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const lastJobIdRef = useRef<string | null>(null);
@@ -114,7 +118,7 @@ const LearningPath = () => {
         const welcomeMessage = 
           `Great! We'll build a starter plan for becoming a ${careerTitle}. ` +
           `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
-          `What does your weekly availability look like?`;
+          `Select the days you're available to study below:`;
         
         setIsTyping(true);
         setTimeout(() => {
@@ -125,6 +129,61 @@ const LearningPath = () => {
       }
     }
   }, [loading, scheduled.length, career, savedCareerTitle]);
+
+  // Toggle day selection
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
+  // Handle day selection submit
+  const handleDaysSubmit = async () => {
+    if (selectedDays.length === 0) {
+      message.warning('Please select at least one day');
+      return;
+    }
+
+    // Sort days by their index in the week
+    const sortedDays = [...selectedDays].sort((a, b) => 
+      DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
+    );
+
+    setMessages(m => [...m, { role: 'user', text: `Available days: ${sortedDays.join(', ')}` }]);
+    
+    setIsTyping(true);
+    setTimeout(async () => {
+      setMessages(m => [
+        ...m,
+        { role: 'bot', text: '🚀 Generating a tailored learning plan with videos scheduled for your available days...' },
+      ]);
+      setIsTyping(false);
+      setChatStage(1);
+      
+      // Fire real job with selected days
+      try {
+        setCreatingPlan(true);
+        setStepsExpanded(true);
+        const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
+        const resp = await api.post('/agent/ask', {
+          query: `Create a beginner ${careerTitle} learning plan with YouTube videos. User is available on these days: ${sortedDays.join(', ')}. Assign one video per available day.`,
+          user_id: 'web',
+          session_id: 'default',
+        });
+        const id = resp.data?.job_id;
+        if (!id) throw new Error('No job_id returned');
+        lastJobIdRef.current = id;
+        setPolling(true);
+        pollStatus(id);
+      } catch (e: any) {
+        setPollError(e?.message || 'Failed to start plan generation');
+        setCreatingPlan(false);
+        setPolling(false);
+      }
+    }, 500);
+  };
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -322,59 +381,11 @@ const LearningPath = () => {
     setInput('');
     setPollError(null);
 
-    // Stage 0 -> acknowledge schedule
-    if (chatStage === 0) {
+    // If generating or generated, keep chat as general feedback
+    if (chatStage >= 1) {
       setIsTyping(true);
       setTimeout(() => {
-        setMessages((m) => [
-          ...m,
-          { role: 'bot', text: `I see your schedule is: ${trimmed}. Anything else to add? (e.g., preferred learning times, specific topics)` },
-        ]);
-        setIsTyping(false);
-        setChatStage(1);
-      }, 500);
-      return;
-    }
-
-    // Stage 1 -> begin real agent call on next user input
-    if (chatStage === 1) {
-      setIsTyping(true);
-      setTimeout(async () => {
-        setMessages((m) => [
-          ...m,
-          { role: 'bot', text: 'Got it! 🚀 Generating a tailored plan with resources and videos...' },
-        ]);
-        setIsTyping(false);
-        setChatStage(2);
-        
-        // Fire real job
-        try {
-          setCreatingPlan(true);
-          setStepsExpanded(true);
-          const resp = await api.post('/agent/ask', {
-            query: `Create a beginner solar panel installer technician learning plan with 10 useful YouTube videos and resources. User note: ${trimmed}`,
-            user_id: 'web',
-            session_id: 'default',
-          });
-          const id = resp.data?.job_id;
-          if (!id) throw new Error('No job_id returned');
-          lastJobIdRef.current = id;
-          setPolling(true);
-          pollStatus(id);
-        } catch (e: any) {
-          setPollError(e?.message || 'Failed to start plan generation');
-          setCreatingPlan(false);
-          setPolling(false);
-        }
-      }, 500);
-      return;
-    }
-
-    // If already generating or generated, keep chat as general
-    if (chatStage >= 2) {
-      setIsTyping(true);
-      setTimeout(() => {
-        setMessages((m) => [...m, { role: 'bot', text: 'Working on it. I will update the plan shortly.' }]);
+        setMessages((m) => [...m, { role: 'bot', text: 'Working on your plan. I will update it shortly.' }]);
         setIsTyping(false);
       }, 300);
     }
@@ -453,24 +464,110 @@ const LearningPath = () => {
       setMessages((m) => [...m, { role: 'bot', text: `Error: ${res.error || 'Unknown error'}` }]);
       return;
     }
-    const videos = extractVideos(res);
-    if (!videos || videos.length === 0) {
+    
+    // Try to extract weekly plan first, fallback to regular videos
+    const weeklyPlan = extractWeeklyPlan(res);
+    let plan: ScheduledVideo[] = [];
+    
+    if (weeklyPlan && weeklyPlan.scheduled_videos && weeklyPlan.scheduled_videos.length > 0) {
+      // Use weekly plan with day assignments
+      const today = dayjs();
+      const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1; // Convert Sunday=0 to Monday=0 index
+      
+      plan = weeklyPlan.scheduled_videos.map((sv: any) => {
+        // Calculate the date for this day of the week
+        const dayIndex = sv.day_index;
+        let daysUntil = dayIndex - todayDayIndex;
+        if (daysUntil < 0) daysUntil += 7; // If day passed this week, schedule for next week
+        
+        return {
+          date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
+          video: {
+            videoId: sv.videoId,
+            title: sv.title,
+            url: sv.url,
+          },
+          completed: false,
+        };
+      });
+      
+      // Sort by date
+      plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+    } else {
+      // Fallback to regular video extraction
+      const videos = extractVideos(res);
+      if (!videos || videos.length === 0) {
+        setMessages((m) => [...m, { role: 'bot', text: 'No videos found. Please try again.' }]);
+        return;
+      }
+      
+      // Use selected days to schedule videos
+      const today = dayjs();
+      const todayDayIndex = today.day() === 0 ? 6 : today.day() - 1;
+      const sortedSelectedDays = [...selectedDays].sort((a, b) => 
+        DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b)
+      );
+      
+      plan = videos.slice(0, sortedSelectedDays.length).map((v, idx) => {
+        const dayName = sortedSelectedDays[idx % sortedSelectedDays.length];
+        const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
+        let daysUntil = dayIndex - todayDayIndex;
+        if (daysUntil < 0) daysUntil += 7;
+        
+        return {
+          date: today.add(daysUntil, 'day').format('YYYY-MM-DD'),
+          video: v,
+          completed: false,
+        };
+      });
+      
+      plan.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+    }
+    
+    if (plan.length === 0) {
       setMessages((m) => [...m, { role: 'bot', text: 'No videos found. Please try again.' }]);
       return;
     }
-    const topFive = videos.slice(0, 5);
-    const start = dayjs();
-    const plan: ScheduledVideo[] = topFive.map((v, idx) => ({
-      date: start.add(idx, 'day').format('YYYY-MM-DD'),
-      video: v,
-      completed: false,
-    }));
+    
     setScheduled(plan);
-    setChatStage(3);
-    setMessages((m) => [...m, { role: 'bot', text: 'Plan created! I placed 5 starter videos on your calendar.' }]);
+    setChatStage(2);
+    setMessages((m) => [...m, { role: 'bot', text: `Plan created! I scheduled ${plan.length} videos on your selected days.` }]);
     
     // Save to backend
     await saveLearningPath(plan);
+  };
+
+  const extractWeeklyPlan = (data: AgentStatus): any | null => {
+    const tryParse = (txt?: string | null): any | null => {
+      if (!txt) return null;
+      try {
+        return JSON.parse(txt);
+      } catch {
+        const match = txt.match(/```json[\s\S]*?({[\s\S]*?})[\s\S]*?```/);
+        if (match && match[1]) {
+          try {
+            return JSON.parse(match[1]);
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+    };
+
+    const fromAnswer = tryParse(data.result?.answer);
+    if (fromAnswer?.weekly_plan) return fromAnswer.weekly_plan;
+    if (fromAnswer?.scheduled_videos) return fromAnswer; // Direct weekly plan format
+
+    if (data.steps && data.steps.length) {
+      for (let i = data.steps.length - 1; i >= 0; i -= 1) {
+        const parsed = tryParse(data.steps[i]?.text || '');
+        if (parsed?.weekly_plan) return parsed.weekly_plan;
+        if (parsed?.scheduled_videos) return parsed;
+      }
+    }
+
+    return null;
   };
 
   const extractVideos = (data: AgentStatus): VideoItem[] => {
@@ -797,32 +894,58 @@ const LearningPath = () => {
           )}
         </div>
         
-        <div className={styles.chatInputRow}>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onPressEnter={handleSend}
-            placeholder={
-              chatStage === 0 
-                ? 'e.g., "I can study 2 hours on weekdays, 4 hours on weekends"' 
-                : chatStage === 1
-                ? 'e.g., "I prefer video tutorials in the evening"'
-                : 'Type your message...'
-            }
-            disabled={creatingPlan || polling || loading || isTyping}
-            size="large"
-            className={styles.chatInput}
-          />
-          <Button 
-            type="primary" 
-            onClick={handleSend} 
-            disabled={creatingPlan || polling || loading || !input.trim() || isTyping}
-            size="large"
-            className={styles.sendButton}
-          >
-            Send
-          </Button>
-        </div>
+        {/* Day selector for stage 0 */}
+        {chatStage === 0 && !creatingPlan && !polling && (
+          <div className={styles.daySelector}>
+            <div className={styles.daySelectorLabel}>Select your available days:</div>
+            <div className={styles.daysGrid}>
+              {DAYS_OF_WEEK.map((day) => (
+                <button
+                  key={day}
+                  className={`${styles.dayButton} ${selectedDays.includes(day) ? styles.dayButtonSelected : ''}`}
+                  onClick={() => toggleDay(day)}
+                  disabled={isTyping}
+                >
+                  <span className={styles.dayShort}>{day.slice(0, 3)}</span>
+                  <span className={styles.dayFull}>{day}</span>
+                </button>
+              ))}
+            </div>
+            <Button
+              type="primary"
+              size="large"
+              onClick={handleDaysSubmit}
+              disabled={selectedDays.length === 0 || isTyping}
+              className={styles.submitDaysButton}
+            >
+              Continue with {selectedDays.length} day{selectedDays.length !== 1 ? 's' : ''} selected
+            </Button>
+          </div>
+        )}
+
+        {/* Text input for later stages */}
+        {chatStage >= 1 && (
+          <div className={styles.chatInputRow}>
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPressEnter={handleSend}
+              placeholder="Type your message..."
+              disabled={creatingPlan || polling || loading || isTyping}
+              size="large"
+              className={styles.chatInput}
+            />
+            <Button 
+              type="primary" 
+              onClick={handleSend} 
+              disabled={creatingPlan || polling || loading || !input.trim() || isTyping}
+              size="large"
+              className={styles.sendButton}
+            >
+              Send
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );
