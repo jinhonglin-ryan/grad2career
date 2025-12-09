@@ -6,6 +6,14 @@ class Video(BaseModel):
     title: str
     url: str
 
+class ScheduledVideo(BaseModel):
+    """A video scheduled for a specific day of the week."""
+    videoId: str
+    title: str
+    url: str
+    day_of_week: str  # e.g., "Monday", "Tuesday", etc.
+    day_index: int    # 0=Monday, 1=Tuesday, ..., 6=Sunday
+
 class ResourceItem(BaseModel):
     title: str
     source: str
@@ -33,10 +41,16 @@ class TrainingProgram(BaseModel):
     contact_email: Optional[str] = None
     website_url: Optional[str] = None
 
+class WeeklyPlan(BaseModel):
+    """Videos assigned to specific days of the week."""
+    available_days: List[str]  # Days user is available, e.g., ["Monday", "Wednesday", "Friday"]
+    scheduled_videos: List[ScheduledVideo]  # Videos assigned to available days
+
 class FinalPlan(BaseModel):
     status: Literal["success", "error"]
     playlist: Optional[Playlist] = None
     videos: Optional[List[Video]] = None
+    weekly_plan: Optional[WeeklyPlan] = None  # New field for day-based scheduling
     resources: Optional[List[ResourceItem]] = None
     training_programs: Optional[List[TrainingProgram]] = None
     error_message: Optional[str] = None
