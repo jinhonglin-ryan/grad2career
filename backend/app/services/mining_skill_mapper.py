@@ -183,7 +183,7 @@ def map_mining_skills_to_career(
             user_lower = user_skill.lower()
             # Check for exact match or keyword match
             if req_lower == user_lower or any(
-                keyword in user_lower for keyword in req_lower.split() if len(keyword) > 3
+                keyword in user_lower for keyword in req_lower.split() if len(keyword) > 2
             ):
                 matching_skills.append(req_skill)
                 break

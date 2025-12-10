@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, TrendingUp, DollarSign, MapPin, Target, ArrowLeft } from 'lucide-react';
+import { LogOut, TrendingUp, DollarSign, MapPin, Target, ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Logo from '../components/Logo';
@@ -30,6 +30,7 @@ const CareerMatch = () => {
   const [careers, setCareers] = useState<Career[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCareer, setSelectedCareer] = useState<Career | null>(null);
+  const [creatingPath, setCreatingPath] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -74,9 +75,37 @@ const CareerMatch = () => {
     setSelectedCareer(career);
   };
 
-  const handleCreateLearningPath = () => {
-    if (selectedCareer) {
+  const handleCreateLearningPath = async () => {
+    if (!selectedCareer) return;
+    
+    setCreatingPath(true);
+    try {
+      // Create learning path entry with the selected career
+      const response = await api.post('/learning/learning-paths', {
+        career_title: selectedCareer.career_title,
+        career_id: selectedCareer.id,
+        scheduled_videos: [], // Empty initially, will be populated via chat
+      });
+      
+      if (response.data?.success && response.data?.data) {
+        const learningPath = response.data.data;
+        // Navigate to learning page with the learning path data
+        navigate('/learning', { 
+          state: { 
+            career: selectedCareer,
+            learningPathId: learningPath.id,
+          } 
+        });
+      } else {
+        // Fallback: navigate anyway
+        navigate('/learning', { state: { career: selectedCareer } });
+      }
+    } catch (error) {
+      console.error('Error creating learning path:', error);
+      // Still navigate even if creation fails - LearningPath can handle it
       navigate('/learning', { state: { career: selectedCareer } });
+    } finally {
+      setCreatingPath(false);
     }
   };
 
@@ -233,8 +262,16 @@ const CareerMatch = () => {
               <button
                 onClick={handleCreateLearningPath}
                 className={styles.actionButton}
+                disabled={creatingPath}
               >
-                Create Learning Path
+                {creatingPath ? (
+                  <>
+                    <Loader2 size={18} className={styles.spinning} />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Learning Path'
+                )}
               </button>
             </div>
           )}

@@ -173,6 +173,48 @@ async def get_target_careers():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/target-careers/skills")
+async def get_career_skills(career_title: str):
+    """Get required skills for a specific career by title."""
+    supabase = get_supabase()
+    
+    try:
+        # Search for career by title (case-insensitive)
+        result = supabase.table('target_careers')\
+            .select('career_title, required_skills, transferable_mining_skills')\
+            .ilike('career_title', f'%{career_title}%')\
+            .limit(1)\
+            .execute()
+        
+        if not result.data or len(result.data) == 0:
+            # Try exact match
+            result = supabase.table('target_careers')\
+                .select('career_title, required_skills, transferable_mining_skills')\
+                .eq('career_title', career_title)\
+                .execute()
+        
+        if not result.data or len(result.data) == 0:
+            return {
+                "success": True,
+                "career_title": career_title,
+                "required_skills": [],
+                "transferable_mining_skills": [],
+                "found": False
+            }
+        
+        career = result.data[0]
+        return {
+            "success": True,
+            "career_title": career.get("career_title"),
+            "required_skills": career.get("required_skills", []) or [],
+            "transferable_mining_skills": career.get("transferable_mining_skills", []) or [],
+            "found": True
+        }
+    except Exception as e:
+        logger.error(f"Error fetching career skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class TrainingProgramsRequest(BaseModel):
     """Request model for fetching training programs."""
     career_title: str

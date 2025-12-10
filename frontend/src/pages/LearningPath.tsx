@@ -35,6 +35,7 @@ type LearningPathData = {
   id: string;
   user_id: string;
   career_id?: string;
+  career?: string; // New career column
   path_data: {
     career_title: string;
     scheduled_videos: ScheduledVideo[];
@@ -45,15 +46,16 @@ type LearningPathData = {
   updated_at: string;
 };
 
-const MOCK_SOLAR_SKILLS: string[] = [
-  'PV System Fundamentals',
-  'Electrical Safety & PPE',
-  'Roof Work & Fall Protection (OSHA)',
-  'Racking & Mounting Systems',
-  'Module, Inverter & String Wiring',
-  'NEC Basics for PV (Article 690)',
-  'Site Assessment & Array Layout',
-  'Commissioning & Troubleshooting',
+// Default skills as fallback
+const DEFAULT_SKILLS: string[] = [
+  'Industry Fundamentals',
+  'Safety & PPE',
+  'Equipment Operation',
+  'Technical Skills',
+  'Problem Solving',
+  'Documentation',
+  'Quality Control',
+  'Communication',
 ];
 
 const LearningPath = () => {
@@ -61,14 +63,16 @@ const LearningPath = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const career = (location as any).state?.career;
+  const initialLearningPathId = (location as any).state?.learningPathId;
 
   // Dashboard states
   const [scheduled, setScheduled] = useState<ScheduledVideo[]>([]);
   const [creatingPlan, setCreatingPlan] = useState(false);
-  const [learningPathId, setLearningPathId] = useState<string | null>(null);
+  const [learningPathId, setLearningPathId] = useState<string | null>(initialLearningPathId || null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedCareerTitle, setSavedCareerTitle] = useState<string>('');
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
 
   // Floating chat states
   const [modalOpen, setModalOpen] = useState(true);
@@ -144,16 +148,50 @@ const LearningPath = () => {
     };
   }, [learningPathId]);
 
+  // Get the current career title from career object or saved state
+  const currentCareerTitle = career?.career_title || savedCareerTitle || '';
+
+  // Fetch required skills from target_careers table
+  const fetchRequiredSkills = async (careerTitle: string) => {
+    if (!careerTitle) return;
+    
+    try {
+      console.log('🎯 Fetching required skills for:', careerTitle);
+      const response = await api.get('/careers/target-careers/skills', {
+        params: { career_title: careerTitle }
+      });
+      
+      if (response.data?.success && response.data?.found) {
+        const skills = response.data.required_skills || [];
+        console.log('✅ Found required skills:', skills);
+        setRequiredSkills(skills);
+      } else {
+        console.log('ℹ️ No skills found in target_careers, using defaults');
+        setRequiredSkills(DEFAULT_SKILLS);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching required skills:', error);
+      setRequiredSkills(DEFAULT_SKILLS);
+    }
+  };
+
+  // Fetch skills when career title is available
+  useEffect(() => {
+    if (currentCareerTitle) {
+      fetchRequiredSkills(currentCareerTitle);
+    }
+  }, [currentCareerTitle]);
+
   // Seed chat message after loading with typing effect
   useEffect(() => {
     if (!loading && scheduled.length === 0) {
       // Only show welcome message if we have career context
       // Don't redirect here - loadExistingPath will handle that
       if (career || savedCareerTitle) {
-        const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
+        const careerTitle = career?.career_title || savedCareerTitle;
         const welcomeMessage = 
           `Great! We'll build a starter plan for becoming a ${careerTitle}. ` +
-          `We'll focus on basics like ${MOCK_SOLAR_SKILLS.slice(0, 3).join(', ')}. ` +
+          `We'll focus on the key skills needed for this role. ` +
           `Select the days you're available to study below:`;
         
         setIsTyping(true);
@@ -202,7 +240,7 @@ const LearningPath = () => {
       try {
         setCreatingPlan(true);
         setStepsExpanded(true);
-        const careerTitle = career?.title || savedCareerTitle || 'Solar Panel Installer Technician';
+        const careerTitle = career?.career_title || savedCareerTitle;
         const resp = await api.post('/agent/ask', {
           query: `Create a beginner ${careerTitle} learning plan with YouTube videos. User is available on these days: ${sortedDays.join(', ')}. Assign one video per available day.`,
           user_id: 'web',
@@ -247,6 +285,11 @@ const LearningPath = () => {
         console.log('📚 Found learning path:', pathData.id);
         setLearningPathId(pathData.id);
         
+        // Use the career column first, then fall back to path_data.career_title
+        const careerName = pathData.career || pathData.path_data.career_title || '';
+        setSavedCareerTitle(careerName);
+        console.log(`🎯 Career: ${careerName}`);
+        
         // Merge backend data with localStorage completion status
         const videos = pathData.path_data.scheduled_videos || [];
         console.log(`📹 Found ${videos.length} videos in learning path`);
@@ -263,15 +306,18 @@ const LearningPath = () => {
         });
         
         setScheduled(mergedVideos);
-        setSavedCareerTitle(pathData.path_data.career_title || '');
         console.log('✨ Learning path loaded successfully');
       } else {
         console.log('ℹ️ No existing learning path found');
-        // No existing path - check if we have career context
-        if (!career) {
+        // No existing path - if we have a learningPathId from navigation, the path was just created
+        // If no career context at all, redirect to careers page
+        if (!career && !initialLearningPathId) {
           console.log('⚠️ No career context, redirecting to careers page');
           message.info('Please select a career path to get started');
           setTimeout(() => navigate('/careers'), 1500);
+        } else if (career) {
+          // We have career from navigation - set the career title
+          setSavedCareerTitle(career.career_title || '');
         }
       }
     } catch (error: any) {
@@ -279,11 +325,13 @@ const LearningPath = () => {
       console.error('Error details:', error.response?.data || error.message);
       
       // Only redirect if we have no career context to fall back on
-      if (!career && !savedCareerTitle) {
+      if (!career && !initialLearningPathId) {
         console.log('⚠️ No fallback career context, redirecting to careers page');
         message.info('Please select a career path to get started');
         setTimeout(() => navigate('/careers'), 1500);
-      } else {
+      } else if (career) {
+        // We have career from navigation - set the career title
+        setSavedCareerTitle(career.career_title || '');
         console.log('ℹ️ Will use career context to create new plan');
       }
     } finally {
@@ -305,43 +353,76 @@ const LearningPath = () => {
     }
   };
 
-  // Save learning path to backend
+  // Save learning path to backend (update existing or create new)
   const saveLearningPath = async (videos: ScheduledVideo[]) => {
     try {
       setSaving(true);
-      console.log('💾 Saving learning path...');
+      const careerTitle = career?.career_title || savedCareerTitle;
+      console.log('💾 Saving learning path...', { learningPathId, careerTitle });
       
-      // Prepare request body
-      const requestBody: any = {
-        career_title: career?.title || savedCareerTitle || 'Solar Panel Installer Technician',
-        scheduled_videos: videos,
-      };
-      
-      // Only include career_id if it's a valid UUID (36 characters with hyphens)
-      if (career?.id && typeof career.id === 'string' && career.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        requestBody.career_id = career.id;
-        console.log('✅ Including career_id:', career.id);
+      if (learningPathId) {
+        // Update existing learning path by appending videos to path_data
+        console.log('📝 Updating existing learning path:', learningPathId);
+        
+        // First get the current path data
+        const currentResponse = await api.get(`/learning/learning-paths/current`);
+        const currentPath = currentResponse.data?.data;
+        
+        if (currentPath) {
+          // Update path_data with new scheduled_videos
+          const updatedPathData = {
+            ...currentPath.path_data,
+            career_title: careerTitle,
+            scheduled_videos: videos,
+          };
+          
+          // Calculate progress
+          const completedCount = videos.filter(v => v.completed).length;
+          const progressPercentage = videos.length > 0 ? (completedCount / videos.length) * 100 : 0;
+          
+          // Use a PATCH-like update via the progress endpoint or create a custom update
+          // For now, we'll use a workaround by deleting and recreating
+          // Actually, let's add a proper update endpoint call
+          const response = await api.patch(`/learning/learning-paths/${learningPathId}/videos`, {
+            path_data: updatedPathData,
+            progress_percentage: progressPercentage,
+          });
+          
+          console.log('✅ Update response:', response.data);
+          message.success('Learning plan updated successfully!');
+        }
       } else {
-        console.log('ℹ️ No valid career_id to include');
-      }
-      
-      console.log('📦 Request body:', {
-        career_title: requestBody.career_title,
-        career_id: requestBody.career_id || 'none',
-        video_count: videos.length
-      });
-      
-      const response = await api.post('/learning/learning-paths', requestBody);
-      console.log('✅ Save response:', response.data);
-      
-      if (response.data?.success && response.data?.data) {
-        const newPathId = response.data.data.id;
-        setLearningPathId(newPathId);
-        console.log('🎉 Learning path saved with ID:', newPathId);
-        message.success('Learning plan saved successfully!');
-      } else {
-        console.warn('⚠️ Save succeeded but response format unexpected:', response.data);
-        message.warning('Learning plan may not have saved correctly');
+        // Create new learning path
+        console.log('🆕 Creating new learning path');
+        const requestBody: any = {
+          career_title: careerTitle,
+          scheduled_videos: videos,
+        };
+        
+        // Only include career_id if it's a valid UUID
+        if (career?.id && typeof career.id === 'string' && career.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          requestBody.career_id = career.id;
+          console.log('✅ Including career_id:', career.id);
+        }
+        
+        console.log('📦 Request body:', {
+          career_title: requestBody.career_title,
+          career_id: requestBody.career_id || 'none',
+          video_count: videos.length
+        });
+        
+        const response = await api.post('/learning/learning-paths', requestBody);
+        console.log('✅ Save response:', response.data);
+        
+        if (response.data?.success && response.data?.data) {
+          const newPathId = response.data.data.id;
+          setLearningPathId(newPathId);
+          console.log('🎉 Learning path saved with ID:', newPathId);
+          message.success('Learning plan saved successfully!');
+        } else {
+          console.warn('⚠️ Save succeeded but response format unexpected:', response.data);
+          message.warning('Learning plan may not have saved correctly');
+        }
       }
     } catch (error: any) {
       console.error('❌ Failed to save learning path:', error);
@@ -761,7 +842,7 @@ const LearningPath = () => {
           <div className={styles.careerPathBadge}>
             <span className={styles.pathIcon}>🎯</span>
             <span className={styles.pathText}>
-              Path to become a <strong>{career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</strong>
+              Path to become a <strong>{currentCareerTitle || 'Loading...'}</strong>
             </span>
           </div>
         </div>
@@ -815,7 +896,7 @@ const LearningPath = () => {
 
         <section className={styles.skillsSection}>
           <div className={styles.skillsHeaderRow}>
-            <h2>Required Skills for {career?.title || savedCareerTitle || 'Solar Panel Installer Technician'}</h2>
+            <h2>Required Skills for {currentCareerTitle || 'your career'}</h2>
             {scheduled.length > 0 && (
               <button
                 type="button"
@@ -828,7 +909,7 @@ const LearningPath = () => {
             )}
           </div>
           <div className={styles.skillTags}>
-            {MOCK_SOLAR_SKILLS.map((s) => (
+            {(requiredSkills.length > 0 ? requiredSkills : DEFAULT_SKILLS).map((s: string) => (
               <span key={s} className={styles.skillTag}>{s}</span>
             ))}
           </div>
