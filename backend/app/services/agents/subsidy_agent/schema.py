@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class ChecklistItem(BaseModel):
     requirement: str
-    satisfied: bool
+    status: Literal["satisfied", "not_satisfied", "pending"]  # pending = insufficient info
     rationale: Optional[str] = None
 
 

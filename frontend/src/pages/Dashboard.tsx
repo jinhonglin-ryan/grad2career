@@ -577,26 +577,48 @@ const Dashboard = () => {
                   <CheckCircle2 size={20} style={{ color: '#667eea' }} />
                   Eligibility Checklist
                 </h3>
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                  <span><span style={{ color: '#10b981' }}>✓</span> Satisfied</span>
+                  <span><span style={{ color: '#f59e0b' }}>?</span> Needs Verification</span>
+                  <span><span style={{ color: '#dc2626' }}>✗</span> Not Satisfied</span>
+                </div>
                 <ul style={{ margin: 0, paddingLeft: '1.1rem', maxHeight: '400px', overflowY: 'auto' }}>
-                  {(grantResult.checklist || []).map((item: any, idx: number) => (
-                    <li key={idx} style={{ marginBottom: '0.75rem' }}>
-                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                        <span style={{ 
-                          color: item.satisfied ? '#10b981' : '#dc2626',
-                          fontSize: '1.1rem',
-                          lineHeight: '1.4'
-                        }}>
-                          {item.satisfied ? '✓' : '✗'}
-                        </span>
-                        <span>{item.requirement}</span>
-                      </div>
-                      {item.rationale && (
-                        <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '1.5rem', marginTop: '0.25rem' }}>
-                          {item.rationale}
+                  {(grantResult.checklist || []).map((item: any, idx: number) => {
+                    // Handle both old format (satisfied: bool) and new format (status: string)
+                    const status = item.status || (item.satisfied === true ? 'satisfied' : item.satisfied === false ? 'not_satisfied' : 'pending');
+                    const statusConfig = {
+                      satisfied: { icon: '✓', color: '#10b981', bgColor: '#ecfdf5' },
+                      not_satisfied: { icon: '✗', color: '#dc2626', bgColor: '#fef2f2' },
+                      pending: { icon: '?', color: '#f59e0b', bgColor: '#fffbeb' }
+                    };
+                    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+                    
+                    return (
+                      <li key={idx} style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <span style={{ 
+                            color: config.color,
+                            backgroundColor: config.bgColor,
+                            fontSize: '0.9rem',
+                            lineHeight: '1.4',
+                            padding: '0.125rem 0.375rem',
+                            borderRadius: '0.25rem',
+                            minWidth: '1.5rem',
+                            textAlign: 'center'
+                          }}>
+                            {config.icon}
+                          </span>
+                          <span>{item.requirement}</span>
                         </div>
-                      )}
-                    </li>
-                  ))}
+                        {item.rationale && (
+                          <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '2.25rem', marginTop: '0.25rem' }}>
+                            {item.rationale}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
