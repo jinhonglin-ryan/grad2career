@@ -67,7 +67,7 @@ class CreateLearningPathRequest(BaseModel):
     """Request to create a learning path."""
     career_title: str
     career_id: Optional[str] = None
-    scheduled_videos: List[ScheduledVideo]
+    scheduled_videos: List[ScheduledVideo] = []  # Can be empty initially
 
 
 class UpdateProgressRequest(BaseModel):
@@ -116,6 +116,7 @@ async def create_learning_path(
         # Insert into database
         learning_path_data = {
             "user_id": user_id,
+            "career": create_request.career_title,  # Store career in new column
             "path_data": path_data,
             "status": "active",
             "progress_percentage": progress
@@ -320,6 +321,48 @@ async def update_video_progress(
         raise
     except Exception as e:
         logger.error(f"Error updating progress: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdateVideosRequest(BaseModel):
+    """Request to update learning path videos."""
+    path_data: Dict[str, Any]
+    progress_percentage: float = 0.0
+
+
+@router.patch("/learning-paths/{path_id}/videos", response_model=Dict[str, Any])
+async def update_learning_path_videos(
+    path_id: str,
+    update_request: UpdateVideosRequest,
+    request: Request
+) -> Dict[str, Any]:
+    """Update the videos/path_data of a learning path."""
+    user_id = await get_current_user(request)
+    supabase = get_supabase()
+    
+    try:
+        result = supabase.table("learning_paths")\
+            .update({
+                "path_data": update_request.path_data,
+                "progress_percentage": update_request.progress_percentage,
+                "updated_at": datetime.utcnow().isoformat()
+            })\
+            .eq("id", path_id)\
+            .eq("user_id", user_id)\
+            .execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Learning path not found")
+        
+        return {
+            "success": True,
+            "data": result.data[0]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating learning path videos: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -278,10 +278,23 @@
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.actionButton:hover {
+.actionButton:hover:not(:disabled) {
   transform: translateY(-2px);
+}
+
+.actionButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
 .loading {
