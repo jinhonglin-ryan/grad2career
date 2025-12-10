@@ -72,6 +72,7 @@ const LearningPath = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedCareerTitle, setSavedCareerTitle] = useState<string>('');
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
 
   // Floating chat states
   const [modalOpen, setModalOpen] = useState(true);
@@ -149,6 +150,37 @@ const LearningPath = () => {
 
   // Get the current career title from career object or saved state
   const currentCareerTitle = career?.career_title || savedCareerTitle || '';
+
+  // Fetch required skills from target_careers table
+  const fetchRequiredSkills = async (careerTitle: string) => {
+    if (!careerTitle) return;
+    
+    try {
+      console.log('🎯 Fetching required skills for:', careerTitle);
+      const response = await api.get('/careers/target-careers/skills', {
+        params: { career_title: careerTitle }
+      });
+      
+      if (response.data?.success && response.data?.found) {
+        const skills = response.data.required_skills || [];
+        console.log('✅ Found required skills:', skills);
+        setRequiredSkills(skills);
+      } else {
+        console.log('ℹ️ No skills found in target_careers, using defaults');
+        setRequiredSkills(DEFAULT_SKILLS);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching required skills:', error);
+      setRequiredSkills(DEFAULT_SKILLS);
+    }
+  };
+
+  // Fetch skills when career title is available
+  useEffect(() => {
+    if (currentCareerTitle) {
+      fetchRequiredSkills(currentCareerTitle);
+    }
+  }, [currentCareerTitle]);
 
   // Seed chat message after loading with typing effect
   useEffect(() => {
@@ -877,7 +909,7 @@ const LearningPath = () => {
             )}
           </div>
           <div className={styles.skillTags}>
-            {(career?.missing_skills || DEFAULT_SKILLS).map((s: string) => (
+            {(requiredSkills.length > 0 ? requiredSkills : DEFAULT_SKILLS).map((s: string) => (
               <span key={s} className={styles.skillTag}>{s}</span>
             ))}
           </div>
