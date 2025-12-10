@@ -2,24 +2,39 @@ from typing import List, Optional, Literal
 from pydantic import BaseModel
 
 
-class SourceItem(BaseModel):
-    title: Optional[str] = None
-    url: str
-    snippet: Optional[str] = None
-
-
 class ChecklistItem(BaseModel):
     requirement: str
     satisfied: bool
     rationale: Optional[str] = None
 
 
-class FinalSubsidyResult(BaseModel):
+class EligibilityResult(BaseModel):
     status: Literal["success", "error"]
     grant_name: str
     checklist: List[ChecklistItem]
-    sources: List[SourceItem]
     notes: Optional[str] = None
     error_message: Optional[str] = None
 
 
+class DocumentItem(BaseModel):
+    document_name: str
+    description: str
+    required: bool
+    how_to_obtain: Optional[str] = None
+
+
+class DocumentationResult(BaseModel):
+    status: Literal["success", "error"]
+    grant_name: str
+    documents: List[DocumentItem]
+    notes: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class FinalSubsidyResult(BaseModel):
+    status: Literal["success", "error"]
+    grant_name: str
+    checklist: List[ChecklistItem]
+    documents: List[DocumentItem]
+    notes: Optional[str] = None
+    error_message: Optional[str] = None

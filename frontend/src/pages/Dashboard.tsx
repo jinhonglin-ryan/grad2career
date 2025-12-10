@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
-import { Modal, Spin, Alert } from 'antd';
+import { Modal, Spin, Alert, Button } from 'antd';
 
 interface SkillProfile {
   has_assessment: boolean;
@@ -66,6 +66,7 @@ const Dashboard = () => {
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantName, setGrantName] = useState<string>('');
   const [grantResult, setGrantResult] = useState<any | null>(null);
+  const [grantModalPage, setGrantModalPage] = useState(0); // 0: Eligibility, 1: Documents, 2: (Future)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,6 +108,7 @@ const Dashboard = () => {
     setGrantLoading(true);
     setGrantError(null);
     setGrantResult(null);
+    setGrantModalPage(0); // Reset to first page
     try {
       const resp = await api.post('/subsidy/evaluate', {
         user_id: user.id,
@@ -544,40 +546,128 @@ const Dashboard = () => {
       >
         {grantLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem' }}>
-            <Spin tip="Evaluating eligibility..." />
+            <Spin tip="Evaluating eligibility and documentation requirements..." />
           </div>
         ) : grantError ? (
           <Alert type="error" message={grantError} />
         ) : grantResult ? (
           <div>
-            <h3 style={{ marginBottom: '0.75rem' }}>Checklist</h3>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {(grantResult.checklist || []).map((item: any, idx: number) => (
-                <li key={idx} style={{ marginBottom: '0.5rem' }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {item.requirement}{' '}
-                    <span style={{ color: item.satisfied ? '#10b981' : '#dc2626' }}>
-                      {item.satisfied ? '✓' : '✗'}
-                    </span>
-                  </div>
-                  {item.rationale && (
-                    <div style={{ color: '#475569', fontSize: '0.9rem' }}>{item.rationale}</div>
-                  )}
-                </li>
+            {/* Page Indicator */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem', gap: '0.5rem' }}>
+              {[0, 1, 2].map((page) => (
+                <div
+                  key={page}
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: grantModalPage === page ? '#667eea' : '#e5e7eb',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onClick={() => setGrantModalPage(page)}
+                />
               ))}
-            </ul>
+            </div>
 
-            <h3 style={{ marginTop: '1.25rem', marginBottom: '0.75rem' }}>Sources</h3>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {(grantResult.sources || []).map((src: any, idx: number) => (
-                <li key={idx} style={{ marginBottom: '0.5rem' }}>
-                  <a href={src.url} target="_blank" rel="noopener noreferrer">
-                    {src.title || src.url}
-                  </a>
-                  {src.snippet && <div style={{ color: '#475569', fontSize: '0.9rem' }}>{src.snippet}</div>}
-                </li>
-              ))}
-            </ul>
+            {/* Page 0: Eligibility Checklist */}
+            {grantModalPage === 0 && (
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle2 size={20} style={{ color: '#667eea' }} />
+                  Eligibility Checklist
+                </h3>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', maxHeight: '400px', overflowY: 'auto' }}>
+                  {(grantResult.checklist || []).map((item: any, idx: number) => (
+                    <li key={idx} style={{ marginBottom: '0.75rem' }}>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <span style={{ 
+                          color: item.satisfied ? '#10b981' : '#dc2626',
+                          fontSize: '1.1rem',
+                          lineHeight: '1.4'
+                        }}>
+                          {item.satisfied ? '✓' : '✗'}
+                        </span>
+                        <span>{item.requirement}</span>
+                      </div>
+                      {item.rationale && (
+                        <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '1.5rem', marginTop: '0.25rem' }}>
+                          {item.rationale}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Page 1: Documentation Needed */}
+            {grantModalPage === 1 && (
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={20} style={{ color: '#667eea' }} />
+                  Documentation Needed
+                </h3>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', maxHeight: '400px', overflowY: 'auto' }}>
+                  {(grantResult.documents || []).map((doc: any, idx: number) => (
+                    <li key={idx} style={{ marginBottom: '1rem' }}>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <span style={{ 
+                          color: doc.required ? '#dc2626' : '#f59e0b',
+                          fontSize: '0.75rem',
+                          padding: '0.125rem 0.375rem',
+                          backgroundColor: doc.required ? '#fef2f2' : '#fffbeb',
+                          borderRadius: '0.25rem',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {doc.required ? 'Required' : 'Optional'}
+                        </span>
+                        <span>{doc.document_name}</span>
+                      </div>
+                      {doc.description && (
+                        <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '0rem', marginTop: '0.25rem' }}>
+                          {doc.description}
+                        </div>
+                      )}
+                      {doc.how_to_obtain && (
+                        <div style={{ color: '#667eea', fontSize: '0.85rem', marginLeft: '0rem', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                          💡 {doc.how_to_obtain}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Page 2: Future Content */}
+            {grantModalPage === 2 && (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6b7280' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
+                <h3 style={{ marginBottom: '0.5rem', color: '#374151' }}>Coming Soon</h3>
+                <p>Additional grant information will be available here.</p>
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+              <Button
+                type="default"
+                icon={<ChevronLeft size={16} />}
+                onClick={() => setGrantModalPage((prev) => Math.max(0, prev - 1))}
+                disabled={grantModalPage === 0}
+              >
+                Previous
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => setGrantModalPage((prev) => Math.min(2, prev + 1))}
+                disabled={grantModalPage === 2}
+                style={{ backgroundColor: '#667eea', borderColor: '#667eea' }}
+              >
+                Next <ChevronRight size={16} style={{ marginLeft: '0.25rem' }} />
+              </Button>
+            </div>
           </div>
         ) : (
           <Alert type="info" message="No result returned." />
