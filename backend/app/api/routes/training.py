@@ -21,6 +21,7 @@ class CoalMinerTrainingRequest(BaseModel):
     user_id: Optional[str] = None  # Optional, will be extracted from JWT
     state: Optional[str] = None     # If not provided, will use user's profile state
     max_results: int = 20
+    career_title: Optional[str] = None  # Optional career title for specific search
 
 
 class TrainingProgram(BaseModel):
@@ -294,29 +295,32 @@ async def get_coal_miner_training_programs(
             logger.info(f"No cache found. Performing live search for {state_name}")
             
             # Check API keys
-            if not settings.openai_api_key:
-                raise HTTPException(status_code=503, detail="OpenAI API key not configured")
             if not settings.serper_api_key:
                 raise HTTPException(status_code=503, detail="Serper API key not configured")
             
-            # Import and use agent
-            from app.services.agents.training_search_agent import TrainingSearchAgent
+            # Import and use ADK agent
+            from app.services.agents.training_search_agent.agent import search_training_programs
             
-            agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
-            search_results = await agent.search_programs(
+            search_results = await search_training_programs(
+                career_title="Renewable Energy",  # General search
                 state=user_state,
-                max_programs=20,
-                serper_key=settings.serper_api_key
+                user_constraints={
+                    'state': user_state,
+                    'budget_constraint': user_metadata.get('budget_constraint'),
+                    'travel_constraint': user_metadata.get('travel_constraint'),
+                    'scheduling': user_metadata.get('scheduling'),
+                }
             )
             
             if not search_results['success']:
-                raise HTTPException(
-                    status_code=503,
-                    detail=search_results.get('message', 'Search failed')
-                )
-            
-            programs_list = search_results.get('programs', [])
-            data_source = "live_search"
+                # Return empty result instead of failing
+                programs_list = []
+                data_source = "live_search"
+            else:
+                # Combine career-specific and general programs
+                programs_list = (search_results.get('career_specific_programs', []) + 
+                               search_results.get('general_programs', []))
+                data_source = "live_search"
             
             # Save to database for future use
             if programs_list:
@@ -435,28 +439,29 @@ async def force_live_search_training_programs(
         logger.info(f"🔄 FORCE REFRESH: Live search for training programs in {state_name}")
         
         # Check API keys
-        if not settings.openai_api_key:
-            raise HTTPException(status_code=503, detail="OpenAI API key not configured")
         if not settings.serper_api_key:
             raise HTTPException(status_code=503, detail="Serper API key not configured")
         
-        # Import and use agent
-        from app.services.agents.training_search_agent import TrainingSearchAgent
+        # Import and use ADK agent
+        from app.services.agents.training_search_agent.agent import search_training_programs
         
-        agent = TrainingSearchAgent(openai_api_key=settings.openai_api_key)
-        search_results = await agent.search_programs(
+        search_results = await search_training_programs(
+            career_title="Renewable Energy",  # General search
             state=user_state,
-            max_programs=20,
-            serper_key=settings.serper_api_key
+            user_constraints={
+                'state': user_state,
+                'budget_constraint': user_metadata.get('budget_constraint'),
+                'travel_constraint': user_metadata.get('travel_constraint'),
+                'scheduling': user_metadata.get('scheduling'),
+            }
         )
         
         if not search_results['success']:
-            raise HTTPException(
-                status_code=503,
-                detail=search_results.get('message', 'Search failed')
-            )
-        
-        programs_list = search_results.get('programs', [])
+            programs_list = []
+        else:
+            # Combine career-specific and general programs
+            programs_list = (search_results.get('career_specific_programs', []) + 
+                           search_results.get('general_programs', []))
         
         logger.info(f"Found {len(programs_list)} programs in live search")
         
@@ -513,5 +518,107 @@ async def force_live_search_training_programs(
         raise HTTPException(
             status_code=500,
             detail=f"Live search failed: {str(e)}"
+        )
+
+
+@router.post("/career-specific-search")
+async def search_career_specific_training(
+    request_body: CoalMinerTrainingRequest,
+    request: Request
+):
+    """
+    Search for training programs specific to a career title with fallback
+    
+    Uses Google ADK LlmAgent to intelligently search for career-specific programs
+    with automatic fallback to general programs if needed.
+    
+    Features:
+    - Career-specific search with intelligent fallback
+    - Constraint matching (budget, travel, schedule)
+    - Geocoding for map integration
+    - Structured output via Pydantic schemas
+    
+    Required: career_title in request body
+    """
+    # Get user from JWT token
+    from app.api.routes.auth import verify_jwt_token
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.replace('Bearer ', '')
+    payload = verify_jwt_token(token)
+    user_id = payload['user_id']
+    
+    if not request_body.career_title:
+        raise HTTPException(
+            status_code=400,
+            detail="career_title is required for career-specific search"
+        )
+    
+    supabase = get_supabase()
+    
+    try:
+        # Get user metadata
+        user_result = supabase.table('users').select('metadata').eq('id', user_id).execute()
+        user_metadata = {}
+        if user_result.data and len(user_result.data) > 0:
+            user_metadata = user_result.data[0].get('metadata', {}) or {}
+        
+        # Get user's state
+        user_state = request_body.state or user_metadata.get('state')
+        if not user_state:
+            raise HTTPException(
+                status_code=400,
+                detail="State information required. Please complete your onboarding profile."
+            )
+        
+        logger.info(f"🎯 Career-specific search using ADK: {request_body.career_title} in {user_state}")
+        
+        # Check API keys
+        if not settings.serper_api_key:
+            raise HTTPException(status_code=503, detail="Serper API key not configured")
+        
+        # Prepare user constraints
+        user_constraints = {
+            'state': user_state,
+            'budget_constraint': user_metadata.get('budget_constraint'),
+            'travel_constraint': user_metadata.get('travel_constraint'),
+            'scheduling': user_metadata.get('scheduling'),
+            'weekly_hours_constraint': user_metadata.get('weekly_hours_constraint'),
+        }
+        
+        # Use the ADK agent
+        from app.services.agents.training_search_agent.agent import search_training_programs
+        
+        search_results = await search_training_programs(
+            career_title=request_body.career_title,
+            state=user_state,
+            user_constraints=user_constraints
+        )
+        
+        if not search_results['success']:
+            return {
+                'success': False,
+                'career_title': request_body.career_title,
+                'user_state': search_results.get('state', user_state),
+                'career_specific_programs': [],
+                'general_programs': [],
+                'used_fallback': False,
+                'total_programs': 0,
+                'user_constraints': user_constraints,
+                'message': search_results.get('message', 'Search failed')
+            }
+        
+        return search_results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in career-specific search: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Career-specific search failed: {str(e)}"
         )
 

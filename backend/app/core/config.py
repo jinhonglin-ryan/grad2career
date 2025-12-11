@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # ---------- Search API (for live training search) ----------
     serper_api_key: Optional[str] = None
 
+    # ---------- Google Maps API ----------
+    google_maps_api_key: Optional[str] = None
+
     # ---------- Speech / Transcription ----------
     # Path to your JSON key, read from .env via:
     # GOOGLE_APPLICATION_CREDENTIALS=google-credentials.json
