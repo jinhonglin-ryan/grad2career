@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { MapPin, ExternalLink, DollarSign, Clock } from 'lucide-react';
 import styles from './TrainingProgramMap.module.css';
+import { googleMapsLoaderOptions } from '../config/googleMaps';
 
 interface TrainingProgram {
   program_name: string;
@@ -51,11 +52,8 @@ const TrainingProgramMap = ({ programs, center, userState }: TrainingProgramMapP
     [programs]
   );
 
-  // Replace with your Google Maps API key
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  // Use shared Google Maps loader config to prevent conflicts
+  const { isLoaded, loadError } = useJsApiLoader(googleMapsLoaderOptions);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     try {
