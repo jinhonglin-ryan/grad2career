@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
@@ -8,6 +8,30 @@ import 'react-toastify/dist/ReactToastify.css';
 import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
 import { Modal, Spin, Alert, Button } from 'antd';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// Map container style
+const mapContainerStyle = {
+  width: '100%',
+  height: '350px',
+  borderRadius: '8px',
+};
+
+// Default center (US center)
+const defaultCenter = {
+  lat: 39.8283,
+  lng: -98.5795,
+};
+
+interface JobCenter {
+  place_id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
 
 interface SkillProfile {
   has_assessment: boolean;
@@ -66,7 +90,21 @@ const Dashboard = () => {
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantName, setGrantName] = useState<string>('');
   const [grantResult, setGrantResult] = useState<any | null>(null);
-  const [grantModalPage, setGrantModalPage] = useState(0); // 0: Eligibility, 1: Documents, 2: (Future)
+  const [grantModalPage, setGrantModalPage] = useState(0); // 0: Eligibility, 1: Documents, 2: Job Centers Map
+  
+  // Google Maps state
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [jobCenters, setJobCenters] = useState<JobCenter[]>([]);
+  const [selectedCenter, setSelectedCenter] = useState<JobCenter | null>(null);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+
+  // Load Google Maps API
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: ['places'],
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,6 +136,98 @@ const Dashboard = () => {
     fetchData();
   }, [user?.id]);
 
+  // Callback when map loads
+  const onMapLoad = useCallback((map: google.maps.Map) => {
+    setMapInstance(map);
+  }, []);
+
+  // Search for nearby American Job Centers
+  const searchNearbyJobCenters = useCallback((map: google.maps.Map, location: { lat: number; lng: number }) => {
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      setMapError('Google Maps Places API not loaded');
+      return;
+    }
+
+    setMapLoading(true);
+    setMapError(null);
+
+    const service = new window.google.maps.places.PlacesService(map);
+    
+    const request: google.maps.places.TextSearchRequest = {
+      query: 'American Job Center',
+      location: new window.google.maps.LatLng(location.lat, location.lng),
+      radius: 80000, // 50 miles in meters
+    };
+
+    service.textSearch(request, (results, status) => {
+      setMapLoading(false);
+      
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+        const centers: JobCenter[] = results.slice(0, 10).map((place) => ({
+          place_id: place.place_id || '',
+          name: place.name || 'American Job Center',
+          address: place.formatted_address || '',
+          lat: place.geometry?.location?.lat() || 0,
+          lng: place.geometry?.location?.lng() || 0,
+        }));
+        setJobCenters(centers);
+        
+        if (centers.length === 0) {
+          setMapError('No American Job Centers found nearby. Try a different location.');
+        }
+      } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+        setJobCenters([]);
+        setMapError('No American Job Centers found in this area.');
+      } else {
+        setMapError('Failed to search for job centers. Please try again.');
+      }
+    });
+  }, []);
+
+  // Get user's location when page 3 is shown
+  useEffect(() => {
+    if (grantModalPage === 2 && isLoaded && !userLocation && !mapLoading) {
+      setMapLoading(true);
+      
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            setUserLocation(location);
+            setMapLoading(false);
+            
+            // Search for job centers once we have location and map
+            if (mapInstance) {
+              searchNearbyJobCenters(mapInstance, location);
+            }
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
+            // Fall back to default US center
+            setUserLocation(defaultCenter);
+            setMapLoading(false);
+            setMapError('Could not get your location. Showing default map view.');
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        setUserLocation(defaultCenter);
+        setMapLoading(false);
+        setMapError('Geolocation is not supported by your browser.');
+      }
+    }
+  }, [grantModalPage, isLoaded, userLocation, mapLoading, mapInstance, searchNearbyJobCenters]);
+
+  // Trigger search when map instance is ready and we have location
+  useEffect(() => {
+    if (mapInstance && userLocation && jobCenters.length === 0 && !mapLoading && grantModalPage === 2) {
+      searchNearbyJobCenters(mapInstance, userLocation);
+    }
+  }, [mapInstance, userLocation, jobCenters.length, mapLoading, grantModalPage, searchNearbyJobCenters]);
+
   const handleOpenGrant = async (name: string) => {
     if (!user?.id) {
       navigate('/login');
@@ -109,6 +239,11 @@ const Dashboard = () => {
     setGrantError(null);
     setGrantResult(null);
     setGrantModalPage(0); // Reset to first page
+    // Reset map state for fresh search
+    setJobCenters([]);
+    setSelectedCenter(null);
+    setUserLocation(null);
+    setMapError(null);
     try {
       const resp = await api.post('/subsidy/evaluate', {
         user_id: user.id,
@@ -662,12 +797,151 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* Page 2: Future Content */}
+            {/* Page 2: Nearby American Job Centers Map */}
             {grantModalPage === 2 && (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6b7280' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
-                <h3 style={{ marginBottom: '0.5rem', color: '#374151' }}>Coming Soon</h3>
-                <p>Additional grant information will be available here.</p>
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <MapPin size={20} style={{ color: '#667eea' }} />
+                  Nearby American Job Centers
+                </h3>
+                <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                  American Job Centers can help you apply for grants and access career services.
+                </p>
+                
+                {loadError && (
+                  <Alert type="error" message="Failed to load Google Maps. Please check your API key." style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {!GOOGLE_MAPS_API_KEY && (
+                  <Alert type="warning" message="Google Maps API key not configured. Please add VITE_GOOGLE_MAPS_API_KEY to your .env file." style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {mapError && (
+                  <Alert type="info" message={mapError} style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {mapLoading && !isLoaded && (
+                  <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Spin tip="Loading map..." />
+                  </div>
+                )}
+                
+                {isLoaded && GOOGLE_MAPS_API_KEY && (
+                  <div style={{ position: 'relative' }}>
+                    {mapLoading && (
+                      <div style={{ 
+                        position: 'absolute', 
+                        top: 0, 
+                        left: 0, 
+                        right: 0, 
+                        bottom: 0, 
+                        backgroundColor: 'rgba(255,255,255,0.8)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        zIndex: 10,
+                        borderRadius: '8px'
+                      }}>
+                        <Spin tip="Finding nearby job centers..." />
+                      </div>
+                    )}
+                    <GoogleMap
+                      mapContainerStyle={mapContainerStyle}
+                      center={userLocation || defaultCenter}
+                      zoom={userLocation ? 10 : 4}
+                      onLoad={onMapLoad}
+                      options={{
+                        streetViewControl: false,
+                        mapTypeControl: false,
+                        fullscreenControl: true,
+                      }}
+                    >
+                      {/* User location marker */}
+                      {userLocation && (
+                        <Marker
+                          position={userLocation}
+                          icon={{
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 10,
+                            fillColor: '#667eea',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 3,
+                          }}
+                          title="Your Location"
+                        />
+                      )}
+                      
+                      {/* Job Center markers */}
+                      {jobCenters.map((center) => (
+                        <Marker
+                          key={center.place_id}
+                          position={{ lat: center.lat, lng: center.lng }}
+                          onClick={() => setSelectedCenter(center)}
+                          icon={{
+                            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                          }}
+                        />
+                      ))}
+                      
+                      {/* Info window for selected center */}
+                      {selectedCenter && (
+                        <InfoWindow
+                          position={{ lat: selectedCenter.lat, lng: selectedCenter.lng }}
+                          onCloseClick={() => setSelectedCenter(null)}
+                        >
+                          <div style={{ maxWidth: '200px' }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: '#1f2937' }}>
+                              {selectedCenter.name}
+                            </h4>
+                            <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#6b7280' }}>
+                              {selectedCenter.address}
+                            </p>
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedCenter.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#667eea', fontSize: '0.85rem', textDecoration: 'none' }}
+                            >
+                              Get Directions →
+                            </a>
+                          </div>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+                  </div>
+                )}
+                
+                {/* List of job centers */}
+                {jobCenters.length > 0 && (
+                  <div style={{ marginTop: '1rem', maxHeight: '150px', overflowY: 'auto' }}>
+                    <h4 style={{ fontSize: '0.9rem', color: '#374151', marginBottom: '0.5rem' }}>
+                      {jobCenters.length} Job Center{jobCenters.length !== 1 ? 's' : ''} Found:
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '1rem', fontSize: '0.85rem' }}>
+                      {jobCenters.map((center) => (
+                        <li 
+                          key={center.place_id} 
+                          style={{ 
+                            marginBottom: '0.5rem', 
+                            cursor: 'pointer',
+                            color: selectedCenter?.place_id === center.place_id ? '#667eea' : '#4b5563'
+                          }}
+                          onClick={() => {
+                            setSelectedCenter(center);
+                            if (mapInstance) {
+                              mapInstance.panTo({ lat: center.lat, lng: center.lng });
+                              mapInstance.setZoom(14);
+                            }
+                          }}
+                        >
+                          <strong>{center.name}</strong>
+                          <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>{center.address}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 
