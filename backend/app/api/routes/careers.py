@@ -98,7 +98,7 @@ async def get_career_matches(request: Request):
                     "local_demand_rating": career.get("appalachian_demand_rating", ""),
                     "commute_distance_miles": None,  # Would calculate with Google Maps
                     "commute_time_minutes": None,
-                    "local_job_growth": f"High demand in {', '.join(career.get('appalachian_states', []))}"
+                    "local_job_growth": career.get("certification_notes", "")
                 }
                 
                 matched_careers.append(career_match)

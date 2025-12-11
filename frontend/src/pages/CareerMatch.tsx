@@ -42,29 +42,22 @@ const CareerMatch = () => {
     try {
       const response = await api.get('/careers/match');
       if (response.data && response.data.careers) {
-        // Transform API response to match component expectations
-        const transformedCareers = response.data.careers.map((career: any) => ({
-          ...career,
-          // Keep all fields from API, they're already in the right format
-        }));
-        
-        // Ensure Solar Panel Installation is always first
-        const solarCareer = solarPanelInstallationCareer;
-        const otherCareers = transformedCareers.filter(
-          (c: Career) => !c.career_title.toLowerCase().includes('solar panel installation')
+        // Sort careers by match score (highest first)
+        const sortedCareers = response.data.careers.sort((a: Career, b: Career) => 
+          b.match_score - a.match_score
         );
-        setCareers([solarCareer, ...otherCareers]);
+        setCareers(sortedCareers);
       } else {
-        setCareers([solarPanelInstallationCareer]);
+        setCareers([]);
       }
     } catch (error: any) {
       console.error('Error fetching careers:', error);
       if (error.response?.status === 404) {
-        // User hasn't completed assessment yet - still show Solar Panel Installation
-        setCareers([solarPanelInstallationCareer]);
+        // User hasn't completed assessment yet
+        setCareers([]);
       } else {
-        // Use mock data for development/fallback
-        setCareers(mockCareers);
+        // Show error message
+        setCareers([]);
       }
     } finally {
       setLoading(false);
@@ -280,81 +273,6 @@ const CareerMatch = () => {
     </div>
   );
 };
-
-// Featured career - always shown first
-const solarPanelInstallationCareer: Career = {
-  id: 'solar-panel-installation-featured',
-  career_title: 'Solar Panel Installation',
-  match_score: 95,
-  salary_range: '$45,000 - $70,000',
-  growth_rate: 'Much faster than average (52% growth)',
-  local_demand_rating: 'Very High',
-  commute_distance_miles: 15,
-  commute_time_minutes: 25,
-  local_job_growth: '🌟 Rapidly growing field with high demand in Appalachian regions. Federal and state incentives are driving massive solar expansion.',
-  transferable_skills: [
-    'Electrical work',
-    'Safety training',
-    'Tool proficiency',
-    'Working at heights',
-    'Physical stamina',
-    'Blueprint reading'
-  ],
-  matching_required_skills: [
-    'Safety Protocols',
-    'Hand Tools',
-    'Physical Stamina',
-    'Electrical Basics',
-    'Problem Solving'
-  ],
-  missing_skills: [
-    'Photovoltaic (PV) Systems',
-    'Solar Array Design',
-    'NABCEP Certification',
-    'Electrical Code (NEC)',
-    'Racking Systems',
-    'Inverter Installation'
-  ],
-  description: 'Solar Panel Installation professionals install, maintain, and repair solar photovoltaic (PV) systems on residential, commercial, and industrial buildings. This fast-growing career combines electrical work with renewable energy technology. Coal miners transitioning to this field find their experience with electrical systems, safety protocols, and working in challenging conditions highly valuable. The industry offers excellent job security, competitive wages, and the opportunity to be part of the clean energy transition.',
-  category: 'Renewable Energy',
-  appalachian_states: ['West Virginia', 'Kentucky', 'Pennsylvania', 'Virginia', 'Ohio'],
-  required_certifications: [
-    'NABCEP PV Installation Professional',
-    'OSHA 30-Hour Construction',
-    'Fall Protection Certification',
-    'Electrical License (varies by state)'
-  ],
-  entry_level_education: 'High school diploma or equivalent, technical training recommended'
-};
-
-// Mock data for development (fallback)
-const mockCareers: Career[] = [
-  solarPanelInstallationCareer,
-  {
-    id: '1',
-    career_title: 'Solar Panel Installer',
-    match_score: 92,
-    salary_range: '$45,000 - $65,000',
-    growth_rate: 'Much faster than average (52% growth)',
-    local_demand_rating: 'high',
-    transferable_skills: ['Electrical work', 'Safety training', 'Tool proficiency'],
-    matching_required_skills: ['Safety Protocols', 'Hand Tools', 'Physical Stamina'],
-    missing_skills: ['Electrical Systems', 'Solar Technology', 'NABCEP Certification'],
-    description: 'Install and maintain solar panel systems on rooftops and other structures.',
-  },
-  {
-    id: '2',
-    career_title: 'Wind Turbine Technician',
-    match_score: 88,
-    salary_range: '$45,000 - $70,000',
-    growth_rate: 'Much faster than average (68% growth)',
-    local_demand_rating: 'high',
-    transferable_skills: ['Heavy machinery operation', 'Electrical maintenance', 'Safety training'],
-    matching_required_skills: ['Mechanical Aptitude', 'Safety Standards', 'Problem Solving'],
-    missing_skills: ['Hydraulics', 'Electrical Systems', 'GWO Certification'],
-    description: 'Maintain and repair wind turbines to ensure optimal energy production.',
-  },
-];
 
 export default CareerMatch;
 
