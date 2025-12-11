@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight, MapPin, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
@@ -9,6 +9,7 @@ import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
 import { Modal, Spin, Alert, Button } from 'antd';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import jsPDF from 'jspdf';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -261,6 +262,230 @@ const Dashboard = () => {
     } finally {
       setGrantLoading(false);
     }
+  };
+
+  // Generate PDF Report
+  const generatePDFReport = () => {
+    if (!grantResult) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPos = 20;
+    
+    // Helper function to add text with word wrap
+    const addWrappedText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number = 7): number => {
+      const lines = doc.splitTextToSize(text, maxWidth);
+      doc.text(lines, x, y);
+      return y + lines.length * lineHeight;
+    };
+    
+    // Helper to check if we need a new page
+    const checkNewPage = (neededSpace: number) => {
+      if (yPos + neededSpace > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+    };
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(102, 126, 234); // #667eea
+    doc.text('Grant Eligibility Report', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+    
+    // Grant name
+    doc.setFontSize(14);
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.text(grantName, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+    
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128); // #6b7280
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+    
+    // Eligibility Summary
+    const checklist = grantResult.checklist || [];
+    const satisfiedCount = checklist.filter((item: any) => item.status === 'satisfied' || item.satisfied === true).length;
+    const notSatisfiedCount = checklist.filter((item: any) => item.status === 'not_satisfied' || item.satisfied === false).length;
+    const pendingCount = checklist.filter((item: any) => item.status === 'pending').length;
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Eligibility Summary', margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    
+    // Eligibility verdict
+    if (notSatisfiedCount > 0) {
+      doc.setTextColor(220, 38, 38); // red
+      yPos = addWrappedText(
+        `Based on our analysis, you may NOT be eligible for this grant. ${notSatisfiedCount} requirement(s) are not satisfied.`,
+        margin, yPos, contentWidth
+      );
+    } else if (pendingCount > 0) {
+      doc.setTextColor(245, 158, 11); // amber
+      yPos = addWrappedText(
+        `You appear to be potentially eligible, but ${pendingCount} requirement(s) need verification.`,
+        margin, yPos, contentWidth
+      );
+    } else {
+      doc.setTextColor(16, 185, 129); // green
+      yPos = addWrappedText(
+        'Congratulations! You appear to meet all eligibility requirements for this grant.',
+        margin, yPos, contentWidth
+      );
+    }
+    yPos += 5;
+    
+    // Stats
+    doc.setTextColor(107, 114, 128);
+    doc.text(`• Satisfied: ${satisfiedCount}  • Not Satisfied: ${notSatisfiedCount}  • Pending Verification: ${pendingCount}`, margin, yPos);
+    yPos += 12;
+    
+    // Eligibility Checklist Section
+    checkNewPage(20);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Eligibility Checklist', margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    checklist.forEach((item: any, index: number) => {
+      checkNewPage(20);
+      
+      const status = item.status || (item.satisfied === true ? 'satisfied' : item.satisfied === false ? 'not_satisfied' : 'pending');
+      const statusSymbol = status === 'satisfied' ? '✓' : status === 'not_satisfied' ? '✗' : '?';
+      const statusColor = status === 'satisfied' ? [16, 185, 129] : status === 'not_satisfied' ? [220, 38, 38] : [245, 158, 11];
+      
+      doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+      doc.text(statusSymbol, margin, yPos);
+      
+      doc.setTextColor(55, 65, 81);
+      yPos = addWrappedText(`${index + 1}. ${item.requirement}`, margin + 8, yPos, contentWidth - 8);
+      
+      if (item.rationale) {
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(9);
+        yPos = addWrappedText(`   ${item.rationale}`, margin + 8, yPos, contentWidth - 8, 5);
+        doc.setFontSize(10);
+      }
+      yPos += 3;
+    });
+    
+    yPos += 10;
+    
+    // Documents Needed Section
+    checkNewPage(20);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Documents Needed', margin, yPos);
+    yPos += 8;
+    
+    const documents = grantResult.documents || [];
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    const requiredDocs = documents.filter((d: any) => d.required);
+    const optionalDocs = documents.filter((d: any) => !d.required);
+    
+    if (requiredDocs.length > 0) {
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Required Documents:', margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      
+      requiredDocs.forEach((doc_item: any) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        yPos = addWrappedText(`• ${doc_item.document_name}`, margin + 5, yPos, contentWidth - 5);
+        if (doc_item.description) {
+          doc.setTextColor(107, 114, 128);
+          doc.setFontSize(9);
+          yPos = addWrappedText(`  ${doc_item.description}`, margin + 8, yPos, contentWidth - 10, 5);
+          doc.setFontSize(10);
+        }
+        yPos += 2;
+      });
+      yPos += 5;
+    }
+    
+    if (optionalDocs.length > 0) {
+      checkNewPage(15);
+      doc.setTextColor(245, 158, 11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Optional Documents:', margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      
+      optionalDocs.forEach((doc_item: any) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        yPos = addWrappedText(`• ${doc_item.document_name}`, margin + 5, yPos, contentWidth - 5);
+        yPos += 2;
+      });
+    }
+    
+    yPos += 10;
+    
+    // Nearby Job Centers Section
+    if (jobCenters.length > 0) {
+      checkNewPage(30);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(55, 65, 81);
+      doc.text('Nearby American Job Centers', margin, yPos);
+      yPos += 6;
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      doc.text('Visit these centers for assistance with your grant application:', margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      jobCenters.slice(0, 5).forEach((center, index) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        doc.setFont('helvetica', 'bold');
+        yPos = addWrappedText(`${index + 1}. ${center.name}`, margin, yPos, contentWidth);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 114, 128);
+        yPos = addWrappedText(`   ${center.address}`, margin, yPos, contentWidth, 5);
+        yPos += 4;
+      });
+    }
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `Page ${i} of ${pageCount} | SkillBridge Grant Eligibility Report`,
+        pageWidth / 2,
+        285,
+        { align: 'center' }
+      );
+    }
+    
+    // Save the PDF
+    const fileName = `${grantName.replace(/[^a-z0-9]/gi, '_')}_Eligibility_Report.pdf`;
+    doc.save(fileName);
+    toast.success('Report downloaded successfully!');
   };
 
   const CIRCUMFERENCE = 339.292;
@@ -682,6 +907,9 @@ const Dashboard = () => {
         {grantLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem' }}>
             <Spin tip="Evaluating eligibility and documentation requirements..." />
+            <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
+              This step might take about 45 seconds to complete.
+            </p>
           </div>
         ) : grantError ? (
           <Alert type="error" message={grantError} />
@@ -955,14 +1183,25 @@ const Dashboard = () => {
               >
                 Previous
               </Button>
-              <Button
-                type="primary"
-                onClick={() => setGrantModalPage((prev) => Math.min(2, prev + 1))}
-                disabled={grantModalPage === 2}
-                style={{ backgroundColor: '#667eea', borderColor: '#667eea' }}
-              >
-                Next <ChevronRight size={16} style={{ marginLeft: '0.25rem' }} />
-              </Button>
+              
+              {grantModalPage === 2 ? (
+                <Button
+                  type="primary"
+                  onClick={generatePDFReport}
+                  style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  icon={<Download size={16} />}
+                >
+                  Generate Report
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  onClick={() => setGrantModalPage((prev) => Math.min(2, prev + 1))}
+                  style={{ backgroundColor: '#667eea', borderColor: '#667eea' }}
+                >
+                  Next <ChevronRight size={16} style={{ marginLeft: '0.25rem' }} />
+                </Button>
+              )}
             </div>
           </div>
         ) : (
@@ -974,7 +1213,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-// Grant Modal (rendered at the end to avoid layout nesting issues)
-// Note: Keep outside of main return if you prefer a portal; here appended above footer.
-
