@@ -10,8 +10,7 @@ import styles from './Dashboard.module.css';
 import { Modal, Spin, Alert, Button } from 'antd';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import jsPDF from 'jspdf';
-
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+import { GOOGLE_MAPS_API_KEY, googleMapsLoaderOptions } from '../config/googleMaps';
 
 // Map container style
 const mapContainerStyle = {
@@ -101,11 +100,8 @@ const Dashboard = () => {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
-  // Load Google Maps API
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-  });
+  // Load Google Maps API (using shared config to prevent conflicts)
+  const { isLoaded, loadError } = useJsApiLoader(googleMapsLoaderOptions);
 
   useEffect(() => {
     const fetchData = async () => {
