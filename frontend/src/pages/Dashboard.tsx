@@ -1,13 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap } from 'lucide-react';
+import { LogOut, Target, TrendingUp, BookOpen, User, Sparkles, ArrowRight, CheckCircle2, HardHat, Zap, FileText, ChevronLeft, ChevronRight, MapPin, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Logo from '../components/Logo';
 import styles from './Dashboard.module.css';
-import { Modal, Spin, Alert } from 'antd';
+import { Modal, Spin, Alert, Button } from 'antd';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import jsPDF from 'jspdf';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// Map container style
+const mapContainerStyle = {
+  width: '100%',
+  height: '350px',
+  borderRadius: '8px',
+};
+
+// Default center (US center)
+const defaultCenter = {
+  lat: 39.8283,
+  lng: -98.5795,
+};
+
+interface JobCenter {
+  place_id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
 
 interface SkillProfile {
   has_assessment: boolean;
@@ -66,6 +91,21 @@ const Dashboard = () => {
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantName, setGrantName] = useState<string>('');
   const [grantResult, setGrantResult] = useState<any | null>(null);
+  const [grantModalPage, setGrantModalPage] = useState(0); // 0: Eligibility, 1: Documents, 2: Job Centers Map
+  
+  // Google Maps state
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [jobCenters, setJobCenters] = useState<JobCenter[]>([]);
+  const [selectedCenter, setSelectedCenter] = useState<JobCenter | null>(null);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+
+  // Load Google Maps API
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: ['places'],
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -97,6 +137,98 @@ const Dashboard = () => {
     fetchData();
   }, [user?.id]);
 
+  // Callback when map loads
+  const onMapLoad = useCallback((map: google.maps.Map) => {
+    setMapInstance(map);
+  }, []);
+
+  // Search for nearby American Job Centers
+  const searchNearbyJobCenters = useCallback((map: google.maps.Map, location: { lat: number; lng: number }) => {
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      setMapError('Google Maps Places API not loaded');
+      return;
+    }
+
+    setMapLoading(true);
+    setMapError(null);
+
+    const service = new window.google.maps.places.PlacesService(map);
+    
+    const request: google.maps.places.TextSearchRequest = {
+      query: 'American Job Center',
+      location: new window.google.maps.LatLng(location.lat, location.lng),
+      radius: 80000, // 50 miles in meters
+    };
+
+    service.textSearch(request, (results, status) => {
+      setMapLoading(false);
+      
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+        const centers: JobCenter[] = results.slice(0, 10).map((place) => ({
+          place_id: place.place_id || '',
+          name: place.name || 'American Job Center',
+          address: place.formatted_address || '',
+          lat: place.geometry?.location?.lat() || 0,
+          lng: place.geometry?.location?.lng() || 0,
+        }));
+        setJobCenters(centers);
+        
+        if (centers.length === 0) {
+          setMapError('No American Job Centers found nearby. Try a different location.');
+        }
+      } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+        setJobCenters([]);
+        setMapError('No American Job Centers found in this area.');
+      } else {
+        setMapError('Failed to search for job centers. Please try again.');
+      }
+    });
+  }, []);
+
+  // Get user's location when page 3 is shown
+  useEffect(() => {
+    if (grantModalPage === 2 && isLoaded && !userLocation && !mapLoading) {
+      setMapLoading(true);
+      
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            setUserLocation(location);
+            setMapLoading(false);
+            
+            // Search for job centers once we have location and map
+            if (mapInstance) {
+              searchNearbyJobCenters(mapInstance, location);
+            }
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
+            // Fall back to default US center
+            setUserLocation(defaultCenter);
+            setMapLoading(false);
+            setMapError('Could not get your location. Showing default map view.');
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        setUserLocation(defaultCenter);
+        setMapLoading(false);
+        setMapError('Geolocation is not supported by your browser.');
+      }
+    }
+  }, [grantModalPage, isLoaded, userLocation, mapLoading, mapInstance, searchNearbyJobCenters]);
+
+  // Trigger search when map instance is ready and we have location
+  useEffect(() => {
+    if (mapInstance && userLocation && jobCenters.length === 0 && !mapLoading && grantModalPage === 2) {
+      searchNearbyJobCenters(mapInstance, userLocation);
+    }
+  }, [mapInstance, userLocation, jobCenters.length, mapLoading, grantModalPage, searchNearbyJobCenters]);
+
   const handleOpenGrant = async (name: string) => {
     if (!user?.id) {
       navigate('/login');
@@ -107,6 +239,12 @@ const Dashboard = () => {
     setGrantLoading(true);
     setGrantError(null);
     setGrantResult(null);
+    setGrantModalPage(0); // Reset to first page
+    // Reset map state for fresh search
+    setJobCenters([]);
+    setSelectedCenter(null);
+    setUserLocation(null);
+    setMapError(null);
     try {
       const resp = await api.post('/subsidy/evaluate', {
         user_id: user.id,
@@ -124,6 +262,230 @@ const Dashboard = () => {
     } finally {
       setGrantLoading(false);
     }
+  };
+
+  // Generate PDF Report
+  const generatePDFReport = () => {
+    if (!grantResult) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPos = 20;
+    
+    // Helper function to add text with word wrap
+    const addWrappedText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number = 7): number => {
+      const lines = doc.splitTextToSize(text, maxWidth);
+      doc.text(lines, x, y);
+      return y + lines.length * lineHeight;
+    };
+    
+    // Helper to check if we need a new page
+    const checkNewPage = (neededSpace: number) => {
+      if (yPos + neededSpace > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+    };
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(102, 126, 234); // #667eea
+    doc.text('Grant Eligibility Report', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+    
+    // Grant name
+    doc.setFontSize(14);
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.text(grantName, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+    
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128); // #6b7280
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+    
+    // Eligibility Summary
+    const checklist = grantResult.checklist || [];
+    const satisfiedCount = checklist.filter((item: any) => item.status === 'satisfied' || item.satisfied === true).length;
+    const notSatisfiedCount = checklist.filter((item: any) => item.status === 'not_satisfied' || item.satisfied === false).length;
+    const pendingCount = checklist.filter((item: any) => item.status === 'pending').length;
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Eligibility Summary', margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    
+    // Eligibility verdict
+    if (notSatisfiedCount > 0) {
+      doc.setTextColor(220, 38, 38); // red
+      yPos = addWrappedText(
+        `Based on our analysis, you may NOT be eligible for this grant. ${notSatisfiedCount} requirement(s) are not satisfied.`,
+        margin, yPos, contentWidth
+      );
+    } else if (pendingCount > 0) {
+      doc.setTextColor(245, 158, 11); // amber
+      yPos = addWrappedText(
+        `You appear to be potentially eligible, but ${pendingCount} requirement(s) need verification.`,
+        margin, yPos, contentWidth
+      );
+    } else {
+      doc.setTextColor(16, 185, 129); // green
+      yPos = addWrappedText(
+        'Congratulations! You appear to meet all eligibility requirements for this grant.',
+        margin, yPos, contentWidth
+      );
+    }
+    yPos += 5;
+    
+    // Stats
+    doc.setTextColor(107, 114, 128);
+    doc.text(`• Satisfied: ${satisfiedCount}  • Not Satisfied: ${notSatisfiedCount}  • Pending Verification: ${pendingCount}`, margin, yPos);
+    yPos += 12;
+    
+    // Eligibility Checklist Section
+    checkNewPage(20);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Eligibility Checklist', margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    checklist.forEach((item: any, index: number) => {
+      checkNewPage(20);
+      
+      const status = item.status || (item.satisfied === true ? 'satisfied' : item.satisfied === false ? 'not_satisfied' : 'pending');
+      const statusSymbol = status === 'satisfied' ? '✓' : status === 'not_satisfied' ? '✗' : '?';
+      const statusColor = status === 'satisfied' ? [16, 185, 129] : status === 'not_satisfied' ? [220, 38, 38] : [245, 158, 11];
+      
+      doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+      doc.text(statusSymbol, margin, yPos);
+      
+      doc.setTextColor(55, 65, 81);
+      yPos = addWrappedText(`${index + 1}. ${item.requirement}`, margin + 8, yPos, contentWidth - 8);
+      
+      if (item.rationale) {
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(9);
+        yPos = addWrappedText(`   ${item.rationale}`, margin + 8, yPos, contentWidth - 8, 5);
+        doc.setFontSize(10);
+      }
+      yPos += 3;
+    });
+    
+    yPos += 10;
+    
+    // Documents Needed Section
+    checkNewPage(20);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('Documents Needed', margin, yPos);
+    yPos += 8;
+    
+    const documents = grantResult.documents || [];
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    const requiredDocs = documents.filter((d: any) => d.required);
+    const optionalDocs = documents.filter((d: any) => !d.required);
+    
+    if (requiredDocs.length > 0) {
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Required Documents:', margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      
+      requiredDocs.forEach((doc_item: any) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        yPos = addWrappedText(`• ${doc_item.document_name}`, margin + 5, yPos, contentWidth - 5);
+        if (doc_item.description) {
+          doc.setTextColor(107, 114, 128);
+          doc.setFontSize(9);
+          yPos = addWrappedText(`  ${doc_item.description}`, margin + 8, yPos, contentWidth - 10, 5);
+          doc.setFontSize(10);
+        }
+        yPos += 2;
+      });
+      yPos += 5;
+    }
+    
+    if (optionalDocs.length > 0) {
+      checkNewPage(15);
+      doc.setTextColor(245, 158, 11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Optional Documents:', margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      
+      optionalDocs.forEach((doc_item: any) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        yPos = addWrappedText(`• ${doc_item.document_name}`, margin + 5, yPos, contentWidth - 5);
+        yPos += 2;
+      });
+    }
+    
+    yPos += 10;
+    
+    // Nearby Job Centers Section
+    if (jobCenters.length > 0) {
+      checkNewPage(30);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(55, 65, 81);
+      doc.text('Nearby American Job Centers', margin, yPos);
+      yPos += 6;
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      doc.text('Visit these centers for assistance with your grant application:', margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      jobCenters.slice(0, 5).forEach((center, index) => {
+        checkNewPage(15);
+        doc.setTextColor(55, 65, 81);
+        doc.setFont('helvetica', 'bold');
+        yPos = addWrappedText(`${index + 1}. ${center.name}`, margin, yPos, contentWidth);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 114, 128);
+        yPos = addWrappedText(`   ${center.address}`, margin, yPos, contentWidth, 5);
+        yPos += 4;
+      });
+    }
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `Page ${i} of ${pageCount} | SkillBridge Grant Eligibility Report`,
+        pageWidth / 2,
+        285,
+        { align: 'center' }
+      );
+    }
+    
+    // Save the PDF
+    const fileName = `${grantName.replace(/[^a-z0-9]/gi, '_')}_Eligibility_Report.pdf`;
+    doc.save(fileName);
+    toast.success('Report downloaded successfully!');
   };
 
   const CIRCUMFERENCE = 339.292;
@@ -544,40 +906,303 @@ const Dashboard = () => {
       >
         {grantLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem' }}>
-            <Spin tip="Evaluating eligibility..." />
+            <Spin tip="Evaluating eligibility and documentation requirements..." />
+            <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
+              This step might take about 45 seconds to complete.
+            </p>
           </div>
         ) : grantError ? (
           <Alert type="error" message={grantError} />
         ) : grantResult ? (
           <div>
-            <h3 style={{ marginBottom: '0.75rem' }}>Checklist</h3>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {(grantResult.checklist || []).map((item: any, idx: number) => (
-                <li key={idx} style={{ marginBottom: '0.5rem' }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {item.requirement}{' '}
-                    <span style={{ color: item.satisfied ? '#10b981' : '#dc2626' }}>
-                      {item.satisfied ? '✓' : '✗'}
-                    </span>
-                  </div>
-                  {item.rationale && (
-                    <div style={{ color: '#475569', fontSize: '0.9rem' }}>{item.rationale}</div>
-                  )}
-                </li>
+            {/* Page Indicator */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem', gap: '0.5rem' }}>
+              {[0, 1, 2].map((page) => (
+                <div
+                  key={page}
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: grantModalPage === page ? '#667eea' : '#e5e7eb',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onClick={() => setGrantModalPage(page)}
+                />
               ))}
-            </ul>
+            </div>
 
-            <h3 style={{ marginTop: '1.25rem', marginBottom: '0.75rem' }}>Sources</h3>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {(grantResult.sources || []).map((src: any, idx: number) => (
-                <li key={idx} style={{ marginBottom: '0.5rem' }}>
-                  <a href={src.url} target="_blank" rel="noopener noreferrer">
-                    {src.title || src.url}
-                  </a>
-                  {src.snippet && <div style={{ color: '#475569', fontSize: '0.9rem' }}>{src.snippet}</div>}
-                </li>
-              ))}
-            </ul>
+            {/* Page 0: Eligibility Checklist */}
+            {grantModalPage === 0 && (
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle2 size={20} style={{ color: '#667eea' }} />
+                  Eligibility Checklist
+                </h3>
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                  <span><span style={{ color: '#10b981' }}>✓</span> Satisfied</span>
+                  <span><span style={{ color: '#f59e0b' }}>?</span> Needs Verification</span>
+                  <span><span style={{ color: '#dc2626' }}>✗</span> Not Satisfied</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', maxHeight: '400px', overflowY: 'auto' }}>
+                  {(grantResult.checklist || []).map((item: any, idx: number) => {
+                    // Handle both old format (satisfied: bool) and new format (status: string)
+                    const status = item.status || (item.satisfied === true ? 'satisfied' : item.satisfied === false ? 'not_satisfied' : 'pending');
+                    const statusConfig = {
+                      satisfied: { icon: '✓', color: '#10b981', bgColor: '#ecfdf5' },
+                      not_satisfied: { icon: '✗', color: '#dc2626', bgColor: '#fef2f2' },
+                      pending: { icon: '?', color: '#f59e0b', bgColor: '#fffbeb' }
+                    };
+                    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+                    
+                    return (
+                      <li key={idx} style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <span style={{ 
+                            color: config.color,
+                            backgroundColor: config.bgColor,
+                            fontSize: '0.9rem',
+                            lineHeight: '1.4',
+                            padding: '0.125rem 0.375rem',
+                            borderRadius: '0.25rem',
+                            minWidth: '1.5rem',
+                            textAlign: 'center'
+                          }}>
+                            {config.icon}
+                          </span>
+                          <span>{item.requirement}</span>
+                        </div>
+                        {item.rationale && (
+                          <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '2.25rem', marginTop: '0.25rem' }}>
+                            {item.rationale}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Page 1: Documentation Needed */}
+            {grantModalPage === 1 && (
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={20} style={{ color: '#667eea' }} />
+                  Documentation Needed
+                </h3>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', maxHeight: '400px', overflowY: 'auto' }}>
+                  {(grantResult.documents || []).map((doc: any, idx: number) => (
+                    <li key={idx} style={{ marginBottom: '1rem' }}>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <span style={{ 
+                          color: doc.required ? '#dc2626' : '#f59e0b',
+                          fontSize: '0.75rem',
+                          padding: '0.125rem 0.375rem',
+                          backgroundColor: doc.required ? '#fef2f2' : '#fffbeb',
+                          borderRadius: '0.25rem',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {doc.required ? 'Required' : 'Optional'}
+                        </span>
+                        <span>{doc.document_name}</span>
+                      </div>
+                      {doc.description && (
+                        <div style={{ color: '#475569', fontSize: '0.9rem', marginLeft: '0rem', marginTop: '0.25rem' }}>
+                          {doc.description}
+                        </div>
+                      )}
+                      {doc.how_to_obtain && (
+                        <div style={{ color: '#667eea', fontSize: '0.85rem', marginLeft: '0rem', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                          💡 {doc.how_to_obtain}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Page 2: Nearby American Job Centers Map */}
+            {grantModalPage === 2 && (
+              <div>
+                <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <MapPin size={20} style={{ color: '#667eea' }} />
+                  Nearby American Job Centers
+                </h3>
+                <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                  American Job Centers can help you apply for grants and access career services.
+                </p>
+                
+                {loadError && (
+                  <Alert type="error" message="Failed to load Google Maps. Please check your API key." style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {!GOOGLE_MAPS_API_KEY && (
+                  <Alert type="warning" message="Google Maps API key not configured. Please add VITE_GOOGLE_MAPS_API_KEY to your .env file." style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {mapError && (
+                  <Alert type="info" message={mapError} style={{ marginBottom: '1rem' }} />
+                )}
+                
+                {mapLoading && !isLoaded && (
+                  <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Spin tip="Loading map..." />
+                  </div>
+                )}
+                
+                {isLoaded && GOOGLE_MAPS_API_KEY && (
+                  <div style={{ position: 'relative' }}>
+                    {mapLoading && (
+                      <div style={{ 
+                        position: 'absolute', 
+                        top: 0, 
+                        left: 0, 
+                        right: 0, 
+                        bottom: 0, 
+                        backgroundColor: 'rgba(255,255,255,0.8)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        zIndex: 10,
+                        borderRadius: '8px'
+                      }}>
+                        <Spin tip="Finding nearby job centers..." />
+                      </div>
+                    )}
+                    <GoogleMap
+                      mapContainerStyle={mapContainerStyle}
+                      center={userLocation || defaultCenter}
+                      zoom={userLocation ? 10 : 4}
+                      onLoad={onMapLoad}
+                      options={{
+                        streetViewControl: false,
+                        mapTypeControl: false,
+                        fullscreenControl: true,
+                      }}
+                    >
+                      {/* User location marker */}
+                      {userLocation && (
+                        <Marker
+                          position={userLocation}
+                          icon={{
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 10,
+                            fillColor: '#667eea',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 3,
+                          }}
+                          title="Your Location"
+                        />
+                      )}
+                      
+                      {/* Job Center markers */}
+                      {jobCenters.map((center) => (
+                        <Marker
+                          key={center.place_id}
+                          position={{ lat: center.lat, lng: center.lng }}
+                          onClick={() => setSelectedCenter(center)}
+                          icon={{
+                            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                          }}
+                        />
+                      ))}
+                      
+                      {/* Info window for selected center */}
+                      {selectedCenter && (
+                        <InfoWindow
+                          position={{ lat: selectedCenter.lat, lng: selectedCenter.lng }}
+                          onCloseClick={() => setSelectedCenter(null)}
+                        >
+                          <div style={{ maxWidth: '200px' }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: '#1f2937' }}>
+                              {selectedCenter.name}
+                            </h4>
+                            <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#6b7280' }}>
+                              {selectedCenter.address}
+                            </p>
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedCenter.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#667eea', fontSize: '0.85rem', textDecoration: 'none' }}
+                            >
+                              Get Directions →
+                            </a>
+                          </div>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+                  </div>
+                )}
+                
+                {/* List of job centers */}
+                {jobCenters.length > 0 && (
+                  <div style={{ marginTop: '1rem', maxHeight: '150px', overflowY: 'auto' }}>
+                    <h4 style={{ fontSize: '0.9rem', color: '#374151', marginBottom: '0.5rem' }}>
+                      {jobCenters.length} Job Center{jobCenters.length !== 1 ? 's' : ''} Found:
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '1rem', fontSize: '0.85rem' }}>
+                      {jobCenters.map((center) => (
+                        <li 
+                          key={center.place_id} 
+                          style={{ 
+                            marginBottom: '0.5rem', 
+                            cursor: 'pointer',
+                            color: selectedCenter?.place_id === center.place_id ? '#667eea' : '#4b5563'
+                          }}
+                          onClick={() => {
+                            setSelectedCenter(center);
+                            if (mapInstance) {
+                              mapInstance.panTo({ lat: center.lat, lng: center.lng });
+                              mapInstance.setZoom(14);
+                            }
+                          }}
+                        >
+                          <strong>{center.name}</strong>
+                          <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>{center.address}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+              <Button
+                type="default"
+                icon={<ChevronLeft size={16} />}
+                onClick={() => setGrantModalPage((prev) => Math.max(0, prev - 1))}
+                disabled={grantModalPage === 0}
+              >
+                Previous
+              </Button>
+              
+              {grantModalPage === 2 ? (
+                <Button
+                  type="primary"
+                  onClick={generatePDFReport}
+                  style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  icon={<Download size={16} />}
+                >
+                  Generate Report
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  onClick={() => setGrantModalPage((prev) => Math.min(2, prev + 1))}
+                  style={{ backgroundColor: '#667eea', borderColor: '#667eea' }}
+                >
+                  Next <ChevronRight size={16} style={{ marginLeft: '0.25rem' }} />
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <Alert type="info" message="No result returned." />
@@ -588,7 +1213,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-// Grant Modal (rendered at the end to avoid layout nesting issues)
-// Note: Keep outside of main return if you prefer a portal; here appended above footer.
-
