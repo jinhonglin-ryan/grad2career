@@ -14,7 +14,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        settings.frontend_url
+        settings.frontend_url,
+        "https://skillbridge-frontend-vnuf.onrender.com"  # Render frontend URL
     ],
     allow_credentials=True,
     allow_methods=["*"],
