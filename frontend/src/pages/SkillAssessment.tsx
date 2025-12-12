@@ -22,8 +22,25 @@ import Logo from '../components/Logo';
 import styles from './SkillAssessment.module.css';
 
 // WebSocket URL for transcription service
-const TRANSCRIPTION_WS_URL =
-  import.meta.env.VITE_TRANSCRIPTION_WS_URL || 'ws://localhost:8000/transcription/ws';
+// Derive from API base URL if not explicitly set
+const getTranscriptionWsUrl = () => {
+  if (import.meta.env.VITE_TRANSCRIPTION_WS_URL) {
+    return import.meta.env.VITE_TRANSCRIPTION_WS_URL;
+  }
+  
+  // Auto-derive from API base URL (VITE_API_BASE_URL must be set in .env)
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  if (!apiBaseUrl) {
+    console.error('VITE_API_BASE_URL is not set! WebSocket will not work.');
+    return '';
+  }
+  
+  const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss' : 'ws';
+  const wsUrl = apiBaseUrl.replace(/^https?/, wsProtocol) + '/transcription/ws';
+  return wsUrl;
+};
+
+const TRANSCRIPTION_WS_URL = getTranscriptionWsUrl();
 
 interface Message {
   role: 'user' | 'assistant';
