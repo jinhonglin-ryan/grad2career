@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -12,10 +12,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
-  RefreshCw,
-  Search,
   Map as MapIcon,
-  List
+  List,
+  Target
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -81,6 +80,15 @@ interface CachedSearchResult {
   careerTitle: string;
 }
 
+interface CareerMatch {
+  id: string;
+  career_title: string;
+  match_score: number;
+  salary_range: string;
+  growth_rate: string;
+  transferable_skills: string[];
+}
+
 const TrainingPrograms = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -91,37 +99,13 @@ const TrainingPrograms = () => {
   const [careerTitle, setCareerTitle] = useState<string>('');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedProgram, setSelectedProgram] = useState<TrainingProgram | null>(null);
+  const [careerMatches, setCareerMatches] = useState<CareerMatch[]>([]);
+  const [loadingCareers, setLoadingCareers] = useState(true);
+  const [targetCareer, setTargetCareer] = useState<string | null>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Load last search on mount
-  useEffect(() => {
-    // Load last search automatically on mount
-    const lastSearchTitle = localStorage.getItem(CACHE_KEY_LAST_SEARCH);
-    if (lastSearchTitle) {
-      const cached = loadFromCache(lastSearchTitle);
-      if (cached) {
-        setCareerTitle(lastSearchTitle);
-        setData(cached.data);
-      }
-    }
-  }, []);
-
-  // Handle navigation from Career Match page
-  useEffect(() => {
-    const stateCareer = location.state?.career;
-    
-    if (stateCareer) {
-      // Coming from Career Match page
-      setCareerTitle(stateCareer.career_title);
-      const cached = loadFromCache(stateCareer.career_title);
-      if (cached) {
-        setData(cached.data);
-      } else {
-        handleSearch(stateCareer.career_title);
-      }
-    }
-  }, [location.state]);
-
-  // Helper functions for localStorage
+  // Helper functions for localStorage (defined before useEffect)
   const getCacheKey = (title: string) => {
     return `${CACHE_KEY_PREFIX}${title.toLowerCase().replace(/\s+/g, '_')}`;
   };
@@ -179,12 +163,30 @@ const TrainingPrograms = () => {
       if (cached) {
         setData(cached.data);
         setError(null);
+        
+        // Scroll to results even when loading from cache
+        setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+        }, 100);
+        
         return;
       }
     }
 
     setLoading(true);
+    setLoadingStep(0);
     setError(null);
+    
+    // Simulate agent thinking steps
+    const stepInterval = setInterval(() => {
+      setLoadingStep(prev => {
+        if (prev < 4) return prev + 1;
+        return prev;
+      });
+    }, 1200); // Change step every 1.2 seconds
     
     try {
       const response = await api.post('/training/career-specific-search', {
@@ -192,17 +194,99 @@ const TrainingPrograms = () => {
         max_results: 20
       });
       
+      clearInterval(stepInterval);
+      setLoadingStep(5); // Final step
+      
+      // Show final step briefly before displaying results
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setData(response.data);
       
       // Save to cache
       saveToCache(titleToSearch, response.data);
+      
+      // Scroll to results after a brief delay to ensure DOM is updated
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
     } catch (err: any) {
+      clearInterval(stepInterval);
       console.error('Error fetching training programs:', err);
       setError(err.response?.data?.detail || 'Failed to fetch training programs. Please try again.');
     } finally {
       setLoading(false);
+      setLoadingStep(0);
     }
   };
+
+  const handleQuickSearch = (career: CareerMatch) => {
+    setCareerTitle(career.career_title);
+    handleSearch(career.career_title);
+  };
+
+  // Fetch career matches on mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchCareerMatches = async () => {
+      try {
+        const response = await api.get('/careers/match');
+        if (isMounted && response.data && response.data.careers) {
+          const sortedCareers = response.data.careers
+            .sort((a: CareerMatch, b: CareerMatch) => b.match_score - a.match_score)
+            .slice(0, 6); // Show top 6 careers
+          setCareerMatches(sortedCareers);
+          
+          // Set target career as the top match
+          if (sortedCareers.length > 0) {
+            setTargetCareer(sortedCareers[0].career_title);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching career matches:', error);
+      } finally {
+        if (isMounted) {
+          setLoadingCareers(false);
+        }
+      }
+    };
+    
+    fetchCareerMatches();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load last search or handle navigation on mount
+  useEffect(() => {
+    const stateCareer = location.state?.career;
+    
+    if (stateCareer) {
+      // Coming from Career Match page - prioritize this
+      setCareerTitle(stateCareer.career_title);
+      const cached = loadFromCache(stateCareer.career_title);
+      if (cached) {
+        setData(cached.data);
+      } else {
+        handleSearch(stateCareer.career_title);
+      }
+    } else {
+      // Load last search automatically on mount
+      const lastSearchTitle = localStorage.getItem(CACHE_KEY_LAST_SEARCH);
+      if (lastSearchTitle) {
+        const cached = loadFromCache(lastSearchTitle);
+        if (cached) {
+          setCareerTitle(lastSearchTitle);
+          setData(cached.data);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getDisplayedPrograms = (): TrainingProgram[] => {
     if (!data) return [];
@@ -252,6 +336,17 @@ const TrainingPrograms = () => {
     return styles.scoreLow;
   };
 
+  const getLoadingStepText = (step: number) => {
+    const steps = [
+      { icon: '🤔', text: 'Analyzing your career requirements...', subtext: 'Understanding what skills and training you need' },
+      { icon: '🔍', text: 'Searching training databases...', subtext: 'Querying thousands of programs across the region' },
+      { icon: '📊', text: 'Evaluating program relevance...', subtext: 'Matching programs to your specific career path' },
+      { icon: '⚖️', text: 'Ranking by match quality...', subtext: 'Prioritizing best-fit options for your situation' },
+      { icon: '✨', text: 'Preparing personalized recommendations...', subtext: 'Organizing results based on your constraints' },
+      { icon: '✅', text: 'Complete!', subtext: 'Loading your training programs...' }
+    ];
+    return steps[step] || steps[0];
+  };
 
   const renderMap = () => {
     try {
@@ -288,9 +383,31 @@ const TrainingPrograms = () => {
         </nav>
         
         <div className={styles.loadingContainer}>
-          <Loader2 size={48} className={styles.spinner} />
-          <h2>Searching for training programs...</h2>
-          <p>Finding programs that match your career and constraints</p>
+          <div className={styles.agentThinking}>
+            <Loader2 size={48} className={styles.spinner} />
+            <div className={styles.thinkingSteps}>
+              {[0, 1, 2, 3, 4, 5].map((step) => {
+                const stepInfo = getLoadingStepText(step);
+                const isActive = step === loadingStep;
+                const isCompleted = step < loadingStep;
+                
+                return (
+                  <div 
+                    key={step} 
+                    className={`${styles.thinkingStep} ${isActive ? styles.activeStep : ''} ${isCompleted ? styles.completedStep : ''}`}
+                  >
+                    <div className={styles.stepIcon}>
+                      {isCompleted ? '✓' : stepInfo.icon}
+                    </div>
+                    <div className={styles.stepContent}>
+                      <div className={styles.stepText}>{stepInfo.text}</div>
+                      {isActive && <div className={styles.stepSubtext}>{stepInfo.subtext}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -326,36 +443,57 @@ const TrainingPrograms = () => {
             <div className={styles.headerText}>
               <h1 className={styles.title}>Career Training Programs</h1>
               <p className={styles.subtitle}>
-                Search for training programs specific to your career goals
+                Click on a career below to find tailored training programs
               </p>
             </div>
           </div>
         </div>
 
-        {/* Search Box */}
-        <div className={styles.searchSection}>
-          <div className={styles.searchBox}>
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Enter career title (e.g., Solar Panel Installation)"
-              value={careerTitle}
-              onChange={(e) => setCareerTitle(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className={styles.searchInput}
-            />
-            <button 
-              onClick={() => handleSearch()}
-              className={styles.searchButton}
-              disabled={loading}
-            >
-              {loading ? <Loader2 size={18} className={styles.spinning} /> : 'Search'}
-            </button>
+        {/* Career Match Cards */}
+        {!loadingCareers && careerMatches.length > 0 && (
+          <div className={styles.quickSearchSection}>
+            <h3 className={styles.quickSearchTitle}>Your Career Matches - Click to Search Programs</h3>
+            <div className={styles.careerCardsGrid}>
+              {careerMatches.map((career) => {
+                const isTargetCareer = career.career_title === targetCareer;
+                return (
+                  <div
+                    key={career.id}
+                    className={`${styles.careerQuickCard} ${isTargetCareer ? styles.targetCareerCard : ''}`}
+                    onClick={() => handleQuickSearch(career)}
+                  >
+                    {isTargetCareer && (
+                      <div className={styles.targetBadge}>
+                        <Target size={14} />
+                        Top Match
+                      </div>
+                    )}
+                    <div className={styles.careerCardHeader}>
+                      <h4>{career.career_title}</h4>
+                      <span className={styles.quickMatchScore}>{career.match_score}%</span>
+                    </div>
+                    <div className={styles.careerCardInfo}>
+                      <span className={styles.careerSalary}>
+                        <DollarSign size={14} />
+                        {career.salary_range}
+                      </span>
+                    </div>
+                    {career.transferable_skills && career.transferable_skills.length > 0 && (
+                      <div className={styles.careerSkills}>
+                        {career.transferable_skills.slice(0, 2).map((skill, idx) => (
+                          <span key={idx} className={styles.skillPill}>{skill}</span>
+                        ))}
+                        {career.transferable_skills.length > 2 && (
+                          <span className={styles.moreSkills}>+{career.transferable_skills.length - 2}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <p className={styles.searchHint}>
-            Enter a specific career title to find training programs tailored to that career
-          </p>
-        </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -369,7 +507,7 @@ const TrainingPrograms = () => {
         {data && (
           <>
             {/* Results Header */}
-            <div className={styles.resultsHeader}>
+            <div ref={resultsRef} className={styles.resultsHeader}>
               <div className={styles.resultsInfo}>
                 {(data.state || data.user_state) && (
                   <div className={styles.stateBadge}>

@@ -999,8 +999,19 @@ const LearningPath = () => {
       {/* Onboarding Modal Chat - forced before plan exists */}
       <Modal
         open={modalOpen && scheduled.length === 0 && !loading}
-        onCancel={() => {}}
-        closable={false}
+        onCancel={() => {
+          Modal.confirm({
+            title: 'Leave Learning Plan?',
+            content: 'Are you sure you want to go back? Your progress will not be saved.',
+            okText: 'Yes, go back',
+            cancelText: 'Stay here',
+            onOk: () => {
+              navigate('/dashboard');
+            },
+          });
+        }}
+        closable={true}
+        closeIcon={<ArrowLeft size={20} />}
         maskClosable={false}
         className={styles.assistantModal}
         title={
@@ -1015,12 +1026,30 @@ const LearningPath = () => {
           </div>
         }
         footer={[
+          <Button 
+            key="back" 
+            type="default" 
+            icon={<ArrowLeft size={16} />}
+            onClick={() => {
+              Modal.confirm({
+                title: 'Leave Learning Plan?',
+                content: 'Are you sure you want to go back to dashboard? Your progress will not be saved.',
+                okText: 'Yes, go back',
+                cancelText: 'Stay here',
+                onOk: () => {
+                  navigate('/dashboard');
+                },
+              });
+            }}
+            style={{ marginRight: 'auto' }}
+          >
+            Back to Dashboard
+          </Button>,
           pollError && (
             <Button 
               key="retry"
               icon={<RefreshCw size={16} />}
               onClick={handleRetry}
-              style={{ marginRight: 'auto' }}
             >
               Retry
             </Button>

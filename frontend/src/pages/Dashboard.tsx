@@ -85,6 +85,7 @@ const Dashboard = () => {
   const [skillProfile, setSkillProfile] = useState<SkillProfile | null>(null);
   const [fullProfile, setFullProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasCareerMatches, setHasCareerMatches] = useState(false);
   const [grantModalOpen, setGrantModalOpen] = useState(false);
   const [grantLoading, setGrantLoading] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
@@ -121,6 +122,20 @@ const Dashboard = () => {
           setFullProfile(profileResponse.data);
         } catch (error) {
           console.error('Error fetching full profile:', error);
+        }
+
+        // Check if user has career matches
+        if (skillResponse.data?.has_assessment) {
+          try {
+            const careerResponse = await api.get('/careers/match');
+            if (careerResponse.data && careerResponse.data.careers && careerResponse.data.careers.length > 0) {
+              setHasCareerMatches(true);
+            }
+          } catch (error) {
+            console.error('Error fetching career matches:', error);
+            // If there's an error (like 404), it means no matches yet
+            setHasCareerMatches(false);
+          }
         }
       } catch (error) {
         console.error('Error fetching skill profile:', error);
@@ -726,7 +741,10 @@ const Dashboard = () => {
                   ) : (
                     <button 
                       className={styles.stepAction}
-                      onClick={() => navigate('/assessment')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/assessment');
+                      }}
                     >
                       Start Now →
                     </button>
@@ -734,7 +752,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className={`${styles.journeyStep} ${skillProfile?.has_assessment ? styles.current : ''}`}>
+              <div className={`${styles.journeyStep} ${hasCareerMatches ? styles.completed : skillProfile?.has_assessment ? styles.current : ''}`}>
                 <div className={styles.stepIndicator}>
                   <div className={styles.stepDot}></div>
                   <div className={styles.stepLine}></div>
@@ -742,24 +760,44 @@ const Dashboard = () => {
                 <div className={styles.stepDetails}>
                   <h4>Explore Careers</h4>
                   <p>Find jobs that match your skills and interests</p>
-                  {skillProfile?.has_assessment && (
+                  {hasCareerMatches ? (
+                    <span className={styles.stepStatus}>Completed ✓</span>
+                  ) : skillProfile?.has_assessment ? (
                     <button 
                       className={styles.stepAction}
-                      onClick={() => navigate('/careers')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/careers');
+                      }}
                     >
                       Explore Now →
                     </button>
+                  ) : (
+                    <span className={styles.stepPending}>Complete Step 2 first</span>
                   )}
                 </div>
               </div>
 
-              <div className={styles.journeyStep}>
+              <div className={`${styles.journeyStep} ${hasCareerMatches ? styles.current : ''}`}>
                 <div className={styles.stepIndicator}>
                   <div className={styles.stepDot}></div>
                 </div>
                 <div className={styles.stepDetails}>
                   <h4>Complete Training</h4>
                   <p>Follow your personalized learning path</p>
+                  {hasCareerMatches ? (
+                    <button 
+                      className={styles.stepAction}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/training');
+                      }}
+                    >
+                      View Programs →
+                    </button>
+                  ) : (
+                    <span className={styles.stepPending}>Complete previous steps first</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -832,7 +870,11 @@ const Dashboard = () => {
                 <div>
                   <span className={styles.label}>Career Matches</span>
                   <span className={styles.value}>
-                    {skillProfile?.has_assessment ? 'Ready to explore' : 'Pending assessment'}
+                    {hasCareerMatches 
+                      ? 'Matches found ✓' 
+                      : skillProfile?.has_assessment 
+                        ? 'Ready to explore' 
+                        : 'Pending assessment'}
                   </span>
                 </div>
               </div>
