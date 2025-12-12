@@ -35,3 +35,12 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+@app.get("/")
+async def root():
+    """健康检查端点"""
+    return {
+        "status": "ok",
+        "service": "SkillBridge API",
+        "message": "API is running. Visit /docs for API documentation."
+    }
