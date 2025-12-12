@@ -1,0 +1,36 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: skillbridge-backend
+    runtime: python
+    plan: free
+    branch: deployment
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: FRONTEND_URL
+        value: https://skillbridge-frontend-vnuf.onrender.com
+      - key: EXTRA_CORS_ORIGINS
+        value: https://skillbridge-frontend-vnuf.onrender.com
+
+  # Frontend Static Site
+  - type: web
+    name: skillbridge-frontend
+    runtime: static
+    plan: free
+    branch: deployment
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_API_URL
+        value: https://skillbridge-5xjq.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
