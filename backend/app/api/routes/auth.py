@@ -187,6 +187,8 @@ async def google_callback(code: str = None, error: str = None):
         
         # 重定向到前端并带上 token 和 new_user 标记
         frontend_callback = f"{settings.frontend_url}/auth/callback?token={jwt_token}&new_user={str(is_new_user).lower()}"
+        print(f"🔗 Redirecting to: {frontend_callback}")
+        print(f"📝 Frontend URL setting: {settings.frontend_url}")
         return RedirectResponse(url=frontend_callback)
         
     except Exception as e:
