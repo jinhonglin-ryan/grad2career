@@ -74,15 +74,15 @@ async def google_login():
 async def google_callback(code: str = None, error: str = None):
     """处理 Google OAuth 回调"""
     if not settings.google_client_id or not settings.google_client_secret:
-        error_url = f"{settings.frontend_url}/auth/callback?error=Google OAuth is not configured"
+        error_url = f"{settings.frontend_url}/#/auth/callback?error=Google OAuth is not configured"
         return RedirectResponse(url=error_url)
     
     if error:
-        error_url = f"{settings.frontend_url}/auth/callback?error={error}"
+        error_url = f"{settings.frontend_url}/#/auth/callback?error={error}"
         return RedirectResponse(url=error_url)
     
     if not code:
-        error_url = f"{settings.frontend_url}/auth/callback?error=No authorization code received"
+        error_url = f"{settings.frontend_url}/#/auth/callback?error=No authorization code received"
         return RedirectResponse(url=error_url)
     
     try:
@@ -122,7 +122,7 @@ async def google_callback(code: str = None, error: str = None):
         picture = user_info.get("picture")
         
         if not email:
-            error_url = f"{settings.frontend_url}/auth/callback?error=No email received from Google"
+            error_url = f"{settings.frontend_url}/#/auth/callback?error=No email received from Google"
             return RedirectResponse(url=error_url)
         
         # 在 Supabase 中查找或创建用户
@@ -186,14 +186,15 @@ async def google_callback(code: str = None, error: str = None):
         jwt_token = create_jwt_token(user['id'], email)
         
         # 重定向到前端并带上 token 和 new_user 标记
-        frontend_callback = f"{settings.frontend_url}/auth/callback?token={jwt_token}&new_user={str(is_new_user).lower()}"
+        # 使用 Hash Router 格式 (#/)
+        frontend_callback = f"{settings.frontend_url}/#/auth/callback?token={jwt_token}&new_user={str(is_new_user).lower()}"
         print(f"🔗 Redirecting to: {frontend_callback}")
         print(f"📝 Frontend URL setting: {settings.frontend_url}")
         return RedirectResponse(url=frontend_callback)
         
     except Exception as e:
         print(f"OAuth error: {str(e)}")
-        error_url = f"{settings.frontend_url}/auth/callback?error={str(e)}"
+        error_url = f"{settings.frontend_url}/#/auth/callback?error={str(e)}"
         return RedirectResponse(url=error_url)
 
 @router.post("/login", response_model=TokenResponse)
